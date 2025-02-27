@@ -1,0 +1,1 @@
+worker: node -r tsconfig-paths/register dist/bot.js 

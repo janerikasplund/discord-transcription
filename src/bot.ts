@@ -4,23 +4,24 @@ import { deploy } from './deploy';
 import { interactionHandlers } from './interactions';
 import { handleVoiceStateUpdate, isRecording, stopRecording } from './voiceStateManager';
 import { ensureDirectoryExists } from './utils';
+import config from './config';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
-const { token, defaultChannel, claudeApiKey, deepgram_token } = require('../auth.json');
+// Extract config values
+const { token, defaultChannel, claudeApiKey, deepgram_token } = config;
 
 // Validate required tokens
 if (!token) {
-    console.error('❌ ERROR: No Discord bot token found in auth.json!');
+    console.error('❌ ERROR: No Discord bot token found!');
     process.exit(1);
 }
 
 if (!deepgram_token) {
-    console.error('❌ WARNING: No Deepgram API token found in auth.json!');
+    console.error('❌ WARNING: No Deepgram API token found!');
     console.error('Transcription will not work without a Deepgram API token.');
 }
 
 if (!claudeApiKey) {
-    console.error('❌ WARNING: No Claude API key found in auth.json!');
+    console.error('❌ WARNING: No Claude API key found!');
     console.error('Summary generation will not work without a Claude API key.');
 }
 

@@ -1,8 +1,8 @@
 import { REST, Routes } from 'discord.js';
 import { commands } from './deploy';
+import config from './config';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
-const { token } = require('../auth.json');
+const { token } = config;
 
 // Create a REST instance
 const rest = new REST({ version: '10' }).setToken(token);

@@ -5,14 +5,15 @@ import { createWriteStream } from 'node:fs';
 import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
 import { addTranscriptMessage } from './transcriptManager';
 import { ensureDirectoryExists } from './utils';
+import config from './config';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
-const { deepgram_token } = require('../auth.json');
+// Get Deepgram token from config
+const { deepgram_token } = config;
 
 // Validate Deepgram token
 if (!deepgram_token) {
-	console.error('❌ ERROR: No Deepgram API token found in auth.json!');
-	console.error('Please add your Deepgram API key as "deepgram_token" in auth.json');
+	console.error('❌ ERROR: No Deepgram API token found!');
+	console.error('Please add your Deepgram API key to your configuration');
 }
 
 console.log('🔑 Initializing Deepgram client with token:', deepgram_token ? `${deepgram_token.substring(0, 8)}...` : 'MISSING');

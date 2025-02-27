@@ -1,11 +1,12 @@
-import { Client, TextChannel, MessageCreateOptions, AttachmentBuilder } from 'discord.js';
+import { Client, TextChannel, MessageCreateOptions, AttachmentBuilder, EmbedBuilder } from 'discord.js';
 import { getTranscriptChannel } from './utils';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Anthropic } from '@anthropic-ai/sdk';
+import axios from 'axios';
+import config from './config';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
-const { claudeApiKey } = require('../auth.json');
+const { claudeApiKey } = config;
 
 // Initialize Anthropic client
 let anthropic: Anthropic | null = null;

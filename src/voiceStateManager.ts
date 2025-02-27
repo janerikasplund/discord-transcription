@@ -3,9 +3,10 @@ import { joinVoiceChannel, VoiceConnection, entersState, VoiceConnectionStatus, 
 import { createListeningStream } from './createListeningStream';
 import { generateTranscript, generateSummary, generateTitle, sendTranscriptAndSummary } from './transcriptManager';
 import { getTranscriptChannel } from './utils';
+import config from './config';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
-const { defaultChannel, transcriptChannelId } = require('../auth.json');
+// Get config values
+const { defaultChannel, transcriptChannelId } = config;
 
 // Store active recordings by guild ID
 interface RecordingData {

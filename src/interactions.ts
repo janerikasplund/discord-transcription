@@ -2,9 +2,9 @@ import { DiscordGatewayAdapterCreator, entersState, joinVoiceChannel, VoiceConne
 import { Client, ChatInputCommandInteraction, GuildMember, Snowflake, User, ChannelType, TextChannel, DiscordAPIError } from 'discord.js';
 import { createListeningStream } from './createListeningStream';
 import { isRecording, stopRecording, startManualRecording } from './voiceStateManager';
+import config from './config';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
-const { defaultChannel } = require('../auth.json');
+const { defaultChannel } = config;
 
 function getDisplayName(interaction: ChatInputCommandInteraction, client: Client, userId: string) {
     const member = interaction.guild?.members.cache.get(userId);

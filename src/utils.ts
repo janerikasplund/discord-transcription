@@ -1,9 +1,9 @@
 import { Client, TextChannel, ChannelType } from 'discord.js';
 import * as fs from 'fs';
 import * as path from 'path';
+import config from './config';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
-const { transcriptChannelId, defaultChannel } = require('../auth.json');
+const { transcriptChannelId, defaultChannel } = config;
 
 /**
  * Get the transcript channel

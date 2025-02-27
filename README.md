@@ -1,6 +1,79 @@
 # Discord Transcription Bot
 
-This bot transcribes voice conversations in Discord voice channels using Deepgram's speech-to-text API.
+A Discord bot that joins voice channels, records audio, and generates transcripts using Deepgram's speech-to-text API.
+
+## Features
+
+- Join voice channels and record audio
+- Transcribe speech in real-time using Deepgram
+- Generate summaries of conversations using Claude AI
+- Automatically handle voice channel events
+- Command-based recording control
+
+## Local Development
+
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Create an `auth.json` file based on `auth.sample.json`
+4. Build the TypeScript code: `npm run build`
+5. Start the bot: `npm start`
+
+## Deploying to Heroku
+
+### Prerequisites
+
+- Heroku CLI installed and logged in
+- A Discord bot token
+- A Deepgram API key
+- (Optional) A Claude API key for summaries
+
+### Deployment Steps
+
+1. Create a new Heroku app:
+   ```
+   heroku create --team sacra discord-transcription-bot
+   ```
+
+2. Set the required environment variables:
+   ```
+   heroku config:set DISCORD_TOKEN=your_discord_token
+   heroku config:set DEEPGRAM_TOKEN=your_deepgram_token
+   heroku config:set CLAUDE_API_KEY=your_claude_api_key
+   heroku config:set DEFAULT_CHANNEL=transcripts
+   heroku config:set TRANSCRIPT_CHANNEL_ID=your_transcript_channel_id
+   ```
+
+3. Deploy the app:
+   ```
+   git push heroku main
+   ```
+
+4. Scale the worker dyno (Heroku doesn't automatically start worker dynos):
+   ```
+   heroku ps:scale worker=1
+   ```
+
+### Updating the Bot
+
+To update the bot after making changes:
+
+1. Commit your changes to git
+2. Push to Heroku: `git push heroku main`
+
+## Commands
+
+- `/join` - Joins the voice channel you're in
+- `/record` - Starts recording everyone in the voice channel
+- `/leave` - Leaves the voice channel
+- `/stop_recording` - Stops recording and generates a transcript
+
+## Environment Variables
+
+- `DISCORD_TOKEN` - Your Discord bot token
+- `DEEPGRAM_TOKEN` - Your Deepgram API key
+- `CLAUDE_API_KEY` - Your Claude API key (optional)
+- `DEFAULT_CHANNEL` - The default channel for transcripts
+- `TRANSCRIPT_CHANNEL_ID` - The ID of the channel to send transcripts to
 
 ## Updates
 
