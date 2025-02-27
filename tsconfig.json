@@ -7,7 +7,13 @@
 		},
         "skipLibCheck": true,
         "allowSyntheticDefaultImports": true,
-        "esModuleInterop":true
+        "esModuleInterop": true,
+        "target": "ES2020",
+        "module": "CommonJS",
+        "moduleResolution": "node",
+        "lib": ["ES2020"],
+        "resolveJsonModule": true,
+        "strict": false
 	},
 	"include": ["src/*.ts"],
 	"exclude": [""]

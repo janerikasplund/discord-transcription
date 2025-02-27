@@ -1,4 +1,4 @@
-import type { Guild } from 'discord.js';
+import { Guild, ApplicationCommandOptionType } from 'discord.js';
 
 export const deploy = async (guild: Guild) => {
 	await guild.commands.set([
@@ -12,7 +12,7 @@ export const deploy = async (guild: Guild) => {
 			options: [
 				{
 					name: 'speaker',
-					type: 'USER' as const,
+					type: ApplicationCommandOptionType.User,
 					description: 'The user to record',
 					required: true,
 				},
