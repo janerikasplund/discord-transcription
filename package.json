@@ -14,9 +14,11 @@
 	"author": "Amish Shah <contact@shah.gg>",
 	"license": "MIT",
 	"dependencies": {
+		"@anthropic-ai/sdk": "^0.38.0",
 		"@deepgram/sdk": "^3.9.0",
 		"@discordjs/opus": "^0.9.0",
 		"@discordjs/voice": "^0.18.0",
+		"axios": "^1.8.1",
 		"discord-api-types": "^0.37.61",
 		"discord.js": "^14.14.1",
 		"ffmpeg-static": "^5.2.0",

@@ -3,6 +3,8 @@ import { Webhook } from 'discord.js';
 import { pipeline } from 'node:stream';
 import { createWriteStream } from 'node:fs';
 import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
+import { addTranscriptMessage } from './transcriptManager';
+import { ensureDirectoryExists } from './utils';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
 const { deepgram_token } = require('../auth.json');
@@ -25,6 +27,9 @@ try {
 	throw error; // Re-throw to prevent the application from continuing with a broken Deepgram client
 }
 
+// Ensure recordings directory exists
+ensureDirectoryExists('./recordings');
+
 export function createListeningStream(
 	webhook: Webhook,
 	recording: Set<string>,
@@ -32,6 +37,7 @@ export function createListeningStream(
 	userId: string,
 	displayName: string,
 	avatarUrl: string,
+	guildId?: string,
 ) {
 	console.log(`🚀 Starting transcription for ${displayName} (${userId})`);
 	console.log(`🔗 Using webhook: ${webhook.id} in channel: ${webhook.channelId}`);
@@ -50,13 +56,30 @@ export function createListeningStream(
 
 	const out = createWriteStream(filename);
 
+	// Handle errors on the output stream
+	out.on('error', (err) => {
+		console.error(`🔥 Error on output stream for ${filename}: ${err.message}`);
+		// Don't close the stream here, let the pipeline handle it
+	});
+
 	opusStream.on('data', (data) => {
 		console.log(`📊 Received audio data from ${displayName}: ${data.length} bytes`);
 	});
 
+	// Handle errors on the opus stream
+	opusStream.on('error', (err) => {
+		console.error(`🔥 Error on opus stream for ${displayName}: ${err.message}`);
+		// Don't close the stream here, let the pipeline handle it
+	});
+
 	pipeline(opusStream, out, (err) => {
 		if (err) {
-			console.warn(`❌ Error recording file ${filename} - ${err.message}`);
+			// Check if it's a "Premature close" error, which is common when users disconnect
+			if (err.message === 'Premature close') {
+				console.log(`ℹ️ User ${displayName} disconnected, recording ended normally.`);
+			} else {
+				console.warn(`❌ Error recording file ${filename} - ${err.message}`);
+			}
 		} else {
 			console.log(`✅ Recorded ${filename}`);
 		}
@@ -105,16 +128,14 @@ export function createListeningStream(
 			const text = transcript.channel.alternatives[0].transcript;
 			console.log(`🔊 ${displayName}: ${text}`);
 
-			// Send the transcript to the Discord channel
-			webhook.send({
-				content: text,
-				username: displayName,
-				avatarURL: avatarUrl,
-			}).then(() => {
-				console.log(`✅ Sent message to Discord via webhook`);
-			}).catch(error => {
-				console.error(`❌ Error sending webhook message:`, error);
-			});
+			// We're no longer sending real-time transcripts to Discord
+			// Instead, just accumulate them for the final transcript
+			
+			// Add to transcript manager if guildId is provided
+			if (guildId) {
+				addTranscriptMessage(guildId, userId, displayName, text);
+				console.log(`✅ Added message to transcript (not streaming to Discord)`);
+			}
 		} else {
 			console.log(`⚠️ Received empty transcript from Deepgram`);
 		}
@@ -123,6 +144,12 @@ export function createListeningStream(
 	// Listen for connection close
 	deepgramLive.on(LiveTranscriptionEvents.Close, () => {
 		console.log(`🔌 Connection to Deepgram closed for ${displayName}`);
+		
+		// Make sure we clean up properly
+		if (recording.has(userId)) {
+			console.log(`🧹 Cleaning up recording for ${displayName} after Deepgram connection closed`);
+			recording.delete(userId);
+		}
 	});
 
 	// Listen for connection errors
@@ -133,6 +160,13 @@ export function createListeningStream(
 	// Handle the end of the audio stream
 	opusStream.on('end', () => {
 		console.log(`🏁 Stream ended for ${displayName}`);
-		deepgramLive.finish();
+		
+		try {
+			// Gracefully finish the Deepgram connection
+			deepgramLive.finish();
+			console.log(`✅ Successfully finished Deepgram connection for ${displayName}`);
+		} catch (error) {
+			console.error(`❌ Error finishing Deepgram connection for ${displayName}:`, error);
+		}
 	});
 }

@@ -1,6 +1,9 @@
-import { DiscordGatewayAdapterCreator, entersState, joinVoiceChannel, VoiceConnection, VoiceConnectionStatus } from '@discordjs/voice';
+import { DiscordGatewayAdapterCreator, entersState, joinVoiceChannel, VoiceConnection, VoiceConnectionStatus, getVoiceConnection } from '@discordjs/voice';
 import { Client, ChatInputCommandInteraction, GuildMember, Snowflake, User, ChannelType, TextChannel, DiscordAPIError } from 'discord.js';
 import { createListeningStream } from './createListeningStream';
+import { isRecording, stopRecording, startManualRecording } from './voiceStateManager';
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
 const { defaultChannel } = require('../auth.json');
 
 function getDisplayName(interaction: ChatInputCommandInteraction, client: Client, userId: string) {
@@ -144,7 +147,7 @@ async function join(
                         const avatarUrl = member?.displayAvatarURL() || '';
                         
                         if (webhook) {
-                            createListeningStream(webhook, recording, receiver, userId, displayName, avatarUrl);
+                            createListeningStream(webhook, recording, receiver, userId, displayName, avatarUrl, interaction.guildId);
                         } else {
                             console.log(`Could not find webhook! Creating...`);
                             
@@ -154,7 +157,7 @@ async function join(
                                     avatar: "https://www.deepgram.com/favicon.ico"
                                 });
                                 console.log(`Created Deepgram webhook ${newWebhook.id}`);
-                                createListeningStream(newWebhook, recording, receiver, userId, displayName, avatarUrl);
+                                createListeningStream(newWebhook, recording, receiver, userId, displayName, avatarUrl, interaction.guildId);
                             } catch (error) {
                                 if (error instanceof DiscordAPIError && error.code === 50013) {
                                     console.error('Bot lacks permission to create webhooks. Please ensure the bot has the "Manage Webhooks" permission.');
@@ -244,15 +247,30 @@ async function record(
 	}
 	
 	if (connection) {
-		const userId = interaction.options.get('speaker')?.value as Snowflake;
-		console.log('Speaker to record:', userId);
-
-        if (userId) {
-            recordable.add(userId);
-            await interaction.reply({ ephemeral: true, content: `Transcribing ${getDisplayName(interaction, client, userId)} to #${defaultChannel}` });
-        } else {
-            await interaction.reply({ ephemeral: true, content: 'No speaker specified!' });
-        }
+		// Mark this as a manual recording in the voiceStateManager
+		if (interaction.guildId) {
+			const guild = client.guilds.cache.get(interaction.guildId);
+			if (guild) {
+				const member = await guild.members.fetch(interaction.user.id);
+				if (member.voice.channel) {
+					// Start a manual recording
+					const humanMembers = member.voice.channel.members.filter(m => !m.user.bot);
+					await startManualRecording(
+						interaction.guildId,
+						member.voice.channel.id,
+						member.voice.channel.name,
+						humanMembers,
+						connection,
+						client
+					);
+				}
+			}
+		}
+		
+		await interaction.reply({ 
+			ephemeral: true, 
+			content: `Started recording everyone in your voice channel. A transcript and summary will be generated when the recording ends.` 
+		});
 	} else {
 		await interaction.reply({ ephemeral: true, content: 'Join a voice channel and then try that again!' });
 	}
@@ -262,17 +280,42 @@ async function leave(
 	interaction: ChatInputCommandInteraction,
 	_recordable: Set<Snowflake>,
 	recording: Set<Snowflake>,
-	_client: Client,
+	client: Client,
 	connection?: VoiceConnection,
 ) {
-	if (connection) {
+	if (interaction.guildId && isRecording(interaction.guildId)) {
+        await interaction.deferReply({ ephemeral: true });
+        await stopRecording(interaction.guildId, client);
+        await interaction.followUp({ ephemeral: true, content: 'Left the channel and stopped recording!' });
+    } else if (connection) {
 		connection.destroy();
-		// recordable.clear();
         recording.clear();
 		await interaction.reply({ ephemeral: true, content: 'Left the channel!' });
 	} else {
 		await interaction.reply({ ephemeral: true, content: 'Not playing in this server!' });
 	}
+}
+
+// Add a new command to stop recording
+async function stopRecordingCommand(
+    interaction: ChatInputCommandInteraction,
+    _recordable: Set<Snowflake>,
+    _recording: Set<Snowflake>,
+    client: Client,
+    _connection?: VoiceConnection,
+) {
+    if (!interaction.guildId) {
+        await interaction.reply({ ephemeral: true, content: 'This command can only be used in a server.' });
+        return;
+    }
+    
+    if (isRecording(interaction.guildId)) {
+        await interaction.deferReply({ ephemeral: true });
+        await stopRecording(interaction.guildId, client);
+        await interaction.followUp({ ephemeral: true, content: 'Recording stopped!' });
+    } else {
+        await interaction.reply({ ephemeral: true, content: 'No active recording to stop.' });
+    }
 }
 
 export const interactionHandlers = new Map<
@@ -288,3 +331,4 @@ export const interactionHandlers = new Map<
 interactionHandlers.set('join', join);
 interactionHandlers.set('record', record);
 interactionHandlers.set('leave', leave);
+interactionHandlers.set('stop_recording', stopRecordingCommand);

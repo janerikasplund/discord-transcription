@@ -2,9 +2,31 @@ import { Client, GatewayIntentBits, Interaction, ChannelType, TextChannel, Disco
 import { getVoiceConnection } from '@discordjs/voice';
 import { deploy } from './deploy';
 import { interactionHandlers } from './interactions';
+import { handleVoiceStateUpdate, isRecording, stopRecording } from './voiceStateManager';
+import { ensureDirectoryExists } from './utils';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
-const { token, defaultChannel } = require('../auth.json');
+const { token, defaultChannel, claudeApiKey, deepgram_token } = require('../auth.json');
+
+// Validate required tokens
+if (!token) {
+    console.error('❌ ERROR: No Discord bot token found in auth.json!');
+    process.exit(1);
+}
+
+if (!deepgram_token) {
+    console.error('❌ WARNING: No Deepgram API token found in auth.json!');
+    console.error('Transcription will not work without a Deepgram API token.');
+}
+
+if (!claudeApiKey) {
+    console.error('❌ WARNING: No Claude API key found in auth.json!');
+    console.error('Summary generation will not work without a Claude API key.');
+}
+
+// Ensure necessary directories exist
+ensureDirectoryExists('./recordings');
+ensureDirectoryExists('./transcripts');
 
 const client = new Client({ 
     intents: [
@@ -16,7 +38,13 @@ const client = new Client({
     ] 
 });
 
-client.on('ready', () => console.log('Ready!'));
+client.on('ready', () => {
+    console.log(`🤖 Bot is ready! Logged in as ${client.user?.tag}`);
+    console.log(`🌐 Connected to ${client.guilds.cache.size} servers`);
+    client.guilds.cache.forEach(guild => {
+        console.log(`   - ${guild.name} (${guild.id})`);
+    });
+});
 
 client.on('messageCreate', async (message) => {
 	if (!message.guild) return;
@@ -106,6 +134,37 @@ client.on('interactionCreate', async (interaction: Interaction) => {
 	} catch (error) {
 		console.warn('Error handling interaction:', error);
 	}
+});
+
+// Handle voice state updates for automatic recording
+client.on('voiceStateUpdate', async (oldState, newState) => {
+    try {
+        await handleVoiceStateUpdate(oldState, newState, client);
+    } catch (error) {
+        console.error('Error handling voice state update:', error);
+    }
+});
+
+// Handle process termination
+process.on('SIGINT', async () => {
+    console.log('Received SIGINT. Cleaning up...');
+    
+    // Stop all active recordings
+    const promises = [];
+    for (const guild of client.guilds.cache.values()) {
+        if (isRecording(guild.id)) {
+            console.log(`Stopping recording in ${guild.name}`);
+            promises.push(stopRecording(guild.id, client));
+        }
+    }
+    
+    // Wait for all recordings to stop
+    await Promise.all(promises);
+    
+    // Destroy the client
+    client.destroy();
+    console.log('Cleanup complete. Exiting...');
+    process.exit(0);
 });
 
 client.on('error', console.warn);
