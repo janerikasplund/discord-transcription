@@ -167,7 +167,12 @@ async function handleMemberLeave(state: VoiceState, client: Client) {
     if ((recordingData.isManualRecording && memberCount === 0) || 
         (!recordingData.isManualRecording && memberCount <= 1)) {
         console.log(`⏹️ Stopping recording in ${channel.name} as ${memberCount} human members remain`);
-        await stopRecording(guildId, client);
+        
+        // Add a small delay to allow any final audio to be processed
+        console.log(`⏱️ Waiting 2 seconds before stopping recording to capture final audio...`);
+        setTimeout(async () => {
+            await stopRecording(guildId, client, true);
+        }, 2000);
     }
 }
 
@@ -202,39 +207,45 @@ function setupRecording(
             
             recording.add(userId);
             
+            // Get the webhook for the transcript channel
+            const transcriptChannel = await getTranscriptChannel(client);
+            if (!transcriptChannel) {
+                console.error(`❌ Could not find transcript channel`);
+                return;
+            }
+            
+            // Get the webhook for the channel
+            let webhook;
             try {
-                // Find our default channel for transcription
-                const channel = client.channels.cache.find(
-                    channel => channel && 
-                    channel.type === ChannelType.GuildText && 
-                    'name' in channel && 
-                    channel.name === defaultChannel
-                );
+                const webhooks = await transcriptChannel.fetchWebhooks();
+                webhook = webhooks.first();
                 
-                if (!channel || !(channel instanceof TextChannel)) {
-                    console.error(`❌ Could not find channel to transcribe to!`);
-                    recording.delete(userId);
-                    return;
-                }
-                
-                // Get or create webhook
-                const webhooks = await channel.fetchWebhooks();
-                let webhook = webhooks.find(wh => wh.name === "Deepgram");
-                const avatarUrl = member.displayAvatarURL();
-                
-                if (webhook) {
-                    createListeningStream(webhook, recording, receiver, userId, displayName, avatarUrl, guildId);
-                } else {
-                    console.log(`🔧 Creating Deepgram webhook...`);
-                    const newWebhook = await channel.createWebhook({
-                        name: "Deepgram",
-                        avatar: "https://www.deepgram.com/favicon.ico"
+                if (!webhook) {
+                    webhook = await transcriptChannel.createWebhook({
+                        name: 'Transcript Webhook',
+                        avatar: client.user?.displayAvatarURL(),
                     });
-                    console.log(`✅ Created Deepgram webhook ${newWebhook.id}`);
-                    createListeningStream(newWebhook, recording, receiver, userId, displayName, avatarUrl, guildId);
                 }
             } catch (error) {
-                console.error(`❌ Error setting up transcription for ${displayName}: ${error}`);
+                console.error(`❌ Error getting webhook: ${error}`);
+                return;
+            }
+            
+            // Get the user's avatar URL
+            const avatarUrl = member.displayAvatarURL();
+            
+            try {
+                createListeningStream(
+                    webhook,
+                    recording,
+                    receiver,
+                    userId,
+                    displayName,
+                    avatarUrl,
+                    guildId
+                );
+            } catch (error) {
+                console.error(`❌ Error creating listening stream: ${error}`);
                 recording.delete(userId);
             }
         }
@@ -243,16 +254,33 @@ function setupRecording(
     // Handle connection state changes
     connection.on(VoiceConnectionStatus.Disconnected, async () => {
         try {
+            console.log(`⚠️ Voice connection disconnected, attempting to reconnect...`);
             // Try to reconnect if disconnected
             await Promise.race([
                 entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
                 entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
             ]);
+            console.log(`✅ Successfully reconnected to voice channel`);
         } catch (error) {
-            // If we can't reconnect, stop the recording
+            // If we can't reconnect, stop the recording gracefully
             console.log(`❌ Voice connection disconnected and couldn't reconnect: ${error}`);
-            connection.destroy();
-            activeRecordings.delete(guildId);
+            
+            // Check if we're still recording in this guild
+            if (activeRecordings.has(guildId)) {
+                console.log(`🛑 Attempting graceful shutdown after disconnection`);
+                try {
+                    // Try to stop recording gracefully
+                    await stopRecording(guildId, client, true);
+                } catch (stopError) {
+                    console.error(`❌ Error during graceful shutdown: ${stopError}`);
+                    // Last resort cleanup
+                    connection.destroy();
+                    activeRecordings.delete(guildId);
+                }
+            } else {
+                // Just destroy the connection if we're not recording
+                connection.destroy();
+            }
         }
     });
 }
@@ -260,7 +288,7 @@ function setupRecording(
 /**
  * Stop recording in a guild
  */
-export async function stopRecording(guildId: string, client: Client) {
+export async function stopRecording(guildId: string, client: Client, isGracefulExit: boolean = false) {
     const recordingData = activeRecordings.get(guildId);
     if (!recordingData) {
         console.log(`⚠️ No active recording found for guild ${guildId}`);
@@ -268,21 +296,33 @@ export async function stopRecording(guildId: string, client: Client) {
     }
     
     try {
-        // Destroy the connection
-        recordingData.connection.destroy();
-        console.log(`🛑 Destroyed voice connection for guild ${guildId}`);
+        console.log(`🛑 Stopping recording for guild ${guildId} (graceful: ${isGracefulExit})`);
         
-        // Clear recording sets
-        recordingData.recording.clear();
+        // First, mark that we're stopping to prevent new recordings
+        const { connection, recording, recordable } = recordingData;
+        
+        // If this is a graceful exit, wait a moment for any final audio to be processed
+        if (isGracefulExit) {
+            // We already added a delay before calling this function
+            console.log(`✅ Processing final audio before stopping recording`);
+        }
+        
+        // Clear recording sets to prevent new recordings
+        recording.clear();
         
         // Get recorded users
-        const recordedUsers = Array.from(recordingData.recordable).map(userId => {
+        const recordedUsers = Array.from(recordable).map(userId => {
             const member = client.guilds.cache.get(guildId)?.members.cache.get(userId);
             return member ? member.displayName : userId;
         });
         
-        // Remove from active recordings
+        // Remove from active recordings map before destroying connection
+        // This prevents race conditions with the disconnection handler
         activeRecordings.delete(guildId);
+        
+        // Now destroy the connection
+        connection.destroy();
+        console.log(`🛑 Destroyed voice connection for guild ${guildId}`);
         
         console.log(`✅ Successfully stopped recording in guild ${guildId}`);
         
@@ -332,6 +372,19 @@ export async function stopRecording(guildId: string, client: Client) {
             }
         } catch (innerError) {
             console.error(`❌ Error sending stop notification: ${innerError}`);
+        }
+        
+        // Make sure we clean up even if there was an error
+        if (activeRecordings.has(guildId)) {
+            const data = activeRecordings.get(guildId);
+            if (data && data.connection) {
+                try {
+                    data.connection.destroy();
+                } catch (err) {
+                    console.error(`❌ Error destroying connection during cleanup: ${err}`);
+                }
+            }
+            activeRecordings.delete(guildId);
         }
     }
 }

@@ -43,6 +43,33 @@ export function createListeningStream(
 	console.log(`🚀 Starting transcription for ${displayName} (${userId})`);
 	console.log(`🔗 Using webhook: ${webhook.id} in channel: ${webhook.channelId}`);
 
+	// Create a flag to track if we've already cleaned up
+	let hasCleanedUp = false;
+
+	// Create a cleanup function to ensure we only clean up once
+	const cleanup = () => {
+		if (hasCleanedUp) return;
+		hasCleanedUp = true;
+
+		console.log(`🧹 Cleaning up resources for ${displayName}`);
+		
+		// Remove from recording set
+		if (recording.has(userId)) {
+			recording.delete(userId);
+			console.log(`✅ Removed ${displayName} from recording set`);
+		}
+
+		// Try to close Deepgram connection if it exists and is open
+		if (deepgramLive && deepgramLive.getReadyState() === 1) {
+			try {
+				deepgramLive.finish();
+				console.log(`✅ Gracefully closed Deepgram connection for ${displayName}`);
+			} catch (error) {
+				console.error(`❌ Error closing Deepgram connection: ${error}`);
+			}
+		}
+	};
+
 	const opusStream = receiver.subscribe(userId, {
 		end: {
 			behavior: EndBehaviorType.AfterSilence,
@@ -61,6 +88,11 @@ export function createListeningStream(
 	out.on('error', (err) => {
 		console.error(`🔥 Error on output stream for ${filename}: ${err.message}`);
 		// Don't close the stream here, let the pipeline handle it
+	});
+
+	// Handle file stream close
+	out.on('close', () => {
+		console.log(`📁 File stream closed for ${filename}`);
 	});
 
 	opusStream.on('data', (data) => {
@@ -84,7 +116,9 @@ export function createListeningStream(
 		} else {
 			console.log(`✅ Recorded ${filename}`);
 		}
-		recording.delete(userId);
+		
+		// Run cleanup when the pipeline ends
+		cleanup();
 	});
 
 	// Create a websocket connection to Deepgram using the new SDK pattern
@@ -146,16 +180,15 @@ export function createListeningStream(
 	deepgramLive.on(LiveTranscriptionEvents.Close, () => {
 		console.log(`🔌 Connection to Deepgram closed for ${displayName}`);
 		
-		// Make sure we clean up properly
-		if (recording.has(userId)) {
-			console.log(`🧹 Cleaning up recording for ${displayName} after Deepgram connection closed`);
-			recording.delete(userId);
-		}
+		// Run cleanup when Deepgram connection closes
+		cleanup();
 	});
 
 	// Listen for connection errors
 	deepgramLive.on(LiveTranscriptionEvents.Error, (error) => {
 		console.error(`🔥 Deepgram error for ${displayName}:`, error);
+		
+		// Don't run cleanup here, let the close event handle it
 	});
 
 	// Handle the end of the audio stream
@@ -164,10 +197,26 @@ export function createListeningStream(
 		
 		try {
 			// Gracefully finish the Deepgram connection
-			deepgramLive.finish();
-			console.log(`✅ Successfully finished Deepgram connection for ${displayName}`);
+			if (deepgramLive.getReadyState() === 1) {
+				deepgramLive.finish();
+				console.log(`✅ Successfully finished Deepgram connection for ${displayName}`);
+			}
 		} catch (error) {
 			console.error(`❌ Error finishing Deepgram connection for ${displayName}:`, error);
 		}
+		
+		// Run cleanup when the stream ends
+		cleanup();
+	});
+	
+	// Handle process exit to ensure cleanup
+	process.on('SIGINT', () => {
+		console.log(`⚠️ Process interrupted, cleaning up for ${displayName}`);
+		cleanup();
+	});
+	
+	process.on('SIGTERM', () => {
+		console.log(`⚠️ Process terminated, cleaning up for ${displayName}`);
+		cleanup();
 	});
 }
