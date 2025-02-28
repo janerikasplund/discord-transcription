@@ -146,26 +146,61 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     }
 });
 
-// Handle process termination
-process.on('SIGINT', async () => {
-    console.log('Received SIGINT. Cleaning up...');
+// Add graceful shutdown handling
+process.on('SIGTERM', async () => {
+    console.log('🛑 Received SIGTERM signal. Shutting down gracefully...');
     
-    // Stop all active recordings
-    const promises = [];
-    for (const guild of client.guilds.cache.values()) {
-        if (isRecording(guild.id)) {
-            console.log(`Stopping recording in ${guild.name}`);
-            promises.push(stopRecording(guild.id, client));
+    try {
+        // Stop all active recordings
+        const guilds = client.guilds.cache;
+        console.log(`🔄 Stopping recordings in ${guilds.size} guilds...`);
+        
+        // Create an array of promises for stopping recordings
+        const stopPromises = [];
+        
+        for (const [guildId, guild] of guilds) {
+            if (isRecording(guildId)) {
+                console.log(`🛑 Stopping recording in guild: ${guild.name} (${guildId})`);
+                stopPromises.push(stopRecording(guildId, client, true));
+            }
         }
+        
+        // Wait for all recordings to stop with a timeout
+        if (stopPromises.length > 0) {
+            console.log(`⏱️ Waiting for ${stopPromises.length} recordings to stop...`);
+            await Promise.all(stopPromises.map(p => Promise.race([
+                p,
+                new Promise(resolve => setTimeout(resolve, 5000)) // 5 second timeout
+            ])));
+        }
+        
+        // Destroy all voice connections
+        console.log('🔌 Destroying all voice connections...');
+        for (const [guildId, guild] of guilds) {
+            const connection = getVoiceConnection(guildId);
+            if (connection) {
+                console.log(`🔌 Destroying voice connection in guild: ${guild.name} (${guildId})`);
+                connection.destroy();
+            }
+        }
+        
+        // Destroy the client
+        console.log('👋 Logging out of Discord...');
+        await client.destroy();
+        
+        console.log('✅ Graceful shutdown complete. Exiting...');
+        process.exit(0);
+    } catch (error) {
+        console.error('❌ Error during graceful shutdown:', error);
+        process.exit(1);
     }
-    
-    // Wait for all recordings to stop
-    await Promise.all(promises);
-    
-    // Destroy the client
-    client.destroy();
-    console.log('Cleanup complete. Exiting...');
-    process.exit(0);
+});
+
+// Add SIGINT handler for local development
+process.on('SIGINT', () => {
+    console.log('Received SIGINT. Triggering graceful shutdown...');
+    // Trigger the same shutdown process as SIGTERM
+    process.emit('SIGTERM');
 });
 
 client.on('error', console.warn);
