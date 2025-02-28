@@ -411,8 +411,7 @@ async function sendRecordingNotification(
         
         // Send notification
         const message = await transcriptChannel.send(
-            `🔴 Started recording in ${channelName} with ${members.size} members: ${memberNames}\n` +
-            `A transcript and summary will be generated when the recording ends.`
+            `🔴 Started recording in ${channelName}!`
         );
         
         console.log(`✅ Sent recording notification to ${transcriptChannel.name}`);
