@@ -96,7 +96,7 @@ export function createListeningStream(
 	});
 
 	opusStream.on('data', (data) => {
-		console.log(`📊 Received audio data from ${displayName}: ${data.length} bytes`);
+		// Removed verbose log about received audio data
 	});
 
 	// Handle errors on the opus stream
@@ -142,7 +142,7 @@ export function createListeningStream(
 			console.log(`🔄 Audio stream is readable, will forward data to Deepgram`);
 			opusStream.on('data', (data: Buffer) => {
 				if (deepgramLive.getReadyState() === 1) {
-					console.log(`📤 Sending ${data.length} bytes to Deepgram`);
+					// Removed verbose log about sending bytes to Deepgram
 					deepgramLive.send(data);
 				} else {
 					console.log(`⚠️ Deepgram connection not ready, state: ${deepgramLive.getReadyState()}`);

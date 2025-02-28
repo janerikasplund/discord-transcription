@@ -249,6 +249,9 @@ export async function sendTranscriptAndSummary(
     recordedUsers: string[]
 ) {
     try {
+        // Log the Claude-generated summary
+        console.log(`🤖 Claude-generated summary:\n${summary}`);
+        
         // Get the transcript channel
         const transcriptChannel = await getTranscriptChannel(client);
         if (!transcriptChannel) {
