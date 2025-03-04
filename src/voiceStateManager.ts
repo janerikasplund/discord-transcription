@@ -1,5 +1,5 @@
-import { Client, VoiceState, TextChannel, ChannelType, GuildMember, Collection, Snowflake } from 'discord.js';
-import { joinVoiceChannel, VoiceConnection, entersState, VoiceConnectionStatus, getVoiceConnection } from '@discordjs/voice';
+import { Client, VoiceState, GuildMember, Collection } from 'discord.js';
+import { joinVoiceChannel, VoiceConnection, entersState, VoiceConnectionStatus } from '@discordjs/voice';
 import { createListeningStream } from './createListeningStream';
 import { generateTranscript, generateSummary, generateTitle, sendTranscriptAndSummary } from './transcriptManager';
 import { getTranscriptChannel } from './utils';
