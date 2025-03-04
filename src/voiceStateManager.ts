@@ -74,6 +74,10 @@ async function handleMemberJoin(state: VoiceState, client: Client) {
             if (recordingData.channelId !== channelId) {
                 console.log(`🔄 Currently recording in ${recordingData.channelName}, but new activity in ${channel.name}`);
                 // For now, we'll stick with the current recording
+            } else {
+                // Add this user to the recordable set if they joined the channel we're recording
+                console.log(`👤 Adding new user ${state.member?.displayName} to recordable set`);
+                recordingData.recordable.add(state.member!.id);
             }
             
             return;
@@ -483,6 +487,18 @@ export async function startManualRecording(
     // Check if we're already recording in this guild
     if (activeRecordings.has(guildId)) {
         console.log(`⏺️ Already recording in guild ${guildId}`);
+        
+        // If we're recording in this channel, add the user to recordable
+        const recordingData = activeRecordings.get(guildId)!;
+        if (recordingData.channelId === channelId) {
+            humanMembers.forEach(member => {
+                if (!recordingData.recordable.has(member.id)) {
+                    console.log(`👤 Adding new user ${member.displayName} to recordable set (manual recording)`);
+                    recordingData.recordable.add(member.id);
+                }
+            });
+        }
+        
         return;
     }
     
