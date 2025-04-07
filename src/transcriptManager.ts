@@ -140,7 +140,7 @@ export async function generateSummary(transcript: string): Promise<string | null
         const response = await anthropic.messages.create({
             model: 'claude-3-7-sonnet-latest',
             max_tokens: 8000,
-            system: `You are a helpful assistant that converts raw meeting transcripts into a clear, concise summary. YOUR SUMMARY MUST BE 250 WORDS MAXIMUM.
+            system: `You are a helpful assistant that converts raw meeting transcripts among colleageues at the company Sacra into a clear, concise summary. YOUR SUMMARY MUST BE 250 WORDS MAXIMUM.
 
 Your goal is to produce a well-structured Markdown summary in this style:
 
@@ -161,6 +161,15 @@ Instructions:
 - If participants mention specific data, numbers, or technical details, include them accurately.
 - If there's any ambiguity in the transcript, indicate that clarification is needed.
 - Write in a neutral, professional tone.
+
+Here is a short list of company names that we mention often for reference. The transcript won't always capture these perfectly, so you may need to edit the transcribed names to match the list below:
+- Sacra
+- Pinegrove
+- Augment
+- Caplight
+- Forerunner
+- Decades
+- Goodfin
 
 BEGIN YOUR RESPONSE WITH THE HIGH-LEVEL OVERVIEW. DO NOT ADD ANY PREFACE OR MENTION THE FACT THAT YOU'RE STARTING YOUR SUMMARY. DO NOT START WITH A "### SUMMARY" HEADER OR A "SUMMARY:" OR ANYTHING LIKE THAT.`,
             messages: [
