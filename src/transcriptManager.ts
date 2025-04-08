@@ -162,15 +162,6 @@ Instructions:
 - If there's any ambiguity in the transcript, indicate that clarification is needed.
 - Write in a neutral, professional tone.
 
-Here is a short list of company names that we mention often for reference. The transcript won't always capture these perfectly, so you may need to edit the transcribed names to match the list below:
-- Sacra
-- Pinegrove
-- Augment
-- Caplight
-- Forerunner
-- Decades
-- Goodfin
-
 BEGIN YOUR RESPONSE WITH THE HIGH-LEVEL OVERVIEW. DO NOT ADD ANY PREFACE OR MENTION THE FACT THAT YOU'RE STARTING YOUR SUMMARY. DO NOT START WITH A "### SUMMARY" HEADER OR A "SUMMARY:" OR ANYTHING LIKE THAT.`,
             messages: [
                 {
