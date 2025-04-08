@@ -128,7 +128,7 @@ export function createListeningStream(
 		language: 'en-US',
 		model: 'nova-3',
 		smart_format: true,
-		keyterm: ['Sacra', 'Pinegrove', 'Augment', 'Caplight', 'Forerunner', 'Decades', 'Goodfin'],
+		keyterm: ['Sacra', 'Pinegrove', 'Augment', 'Caplight', 'Forerunner', 'Decades', 'Goodfin', 'IronArc'],
 		encoding: 'opus',
 		channels: 1,
 		sample_rate: 48000,
