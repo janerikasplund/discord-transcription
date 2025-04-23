@@ -290,7 +290,7 @@ function setupRecording(
 }
 
 /**
- * Stop recording in a guild
+ * Stop recording in a guild and generate transcript/summary
  */
 export async function stopRecording(guildId: string, client: Client, isGracefulExit: boolean = false) {
     const recordingData = activeRecordings.get(guildId);
@@ -390,6 +390,55 @@ export async function stopRecording(guildId: string, client: Client, isGracefulE
             }
             activeRecordings.delete(guildId);
         }
+    }
+}
+
+/**
+ * Cancel recording in a guild without generating transcript/summary
+ */
+export function cancelRecording(guildId: string) {
+    const recordingData = activeRecordings.get(guildId);
+    if (!recordingData) {
+        console.log(`⚠️ No active recording found for guild ${guildId} to cancel`);
+        return false; // Indicate no recording was found
+    }
+
+    try {
+        console.log(`🛑 Cancelling recording for guild ${guildId}`);
+
+        const { connection, recording, recordable, channelName } = recordingData;
+
+        // Clear recording sets to prevent new recordings
+        recording.clear();
+        recordable.clear(); // Also clear recordable set
+
+        // Remove from active recordings map before destroying connection
+        activeRecordings.delete(guildId);
+
+        // Destroy the connection
+        if (connection) {
+            connection.destroy();
+            console.log(`🛑 Destroyed voice connection for guild ${guildId} during cancellation`);
+        }
+
+        console.log(`✅ Successfully cancelled recording in ${channelName} for guild ${guildId}`);
+        return true; // Indicate successful cancellation
+    } catch (error) {
+        console.error(`❌ Error cancelling recording: ${error}`);
+        
+        // Ensure cleanup even if error occurs during cancellation
+        if (activeRecordings.has(guildId)) {
+            const data = activeRecordings.get(guildId);
+            if (data && data.connection) {
+                try {
+                    data.connection.destroy();
+                } catch (err) {
+                    console.error(`❌ Error destroying connection during cancellation cleanup: ${err}`);
+                }
+            }
+            activeRecordings.delete(guildId);
+        }
+        return false; // Indicate cancellation failed
     }
 }
 

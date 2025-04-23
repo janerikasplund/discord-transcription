@@ -1,7 +1,7 @@
 import { DiscordGatewayAdapterCreator, entersState, joinVoiceChannel, VoiceConnection, VoiceConnectionStatus, getVoiceConnection } from '@discordjs/voice';
 import { Client, ChatInputCommandInteraction, GuildMember, Snowflake, User, ChannelType, TextChannel, DiscordAPIError } from 'discord.js';
 import { createListeningStream } from './createListeningStream';
-import { isRecording, stopRecording, startManualRecording } from './voiceStateManager';
+import { isRecording, stopRecording, startManualRecording, cancelRecording } from './voiceStateManager';
 import config from './config';
 
 const { defaultChannel } = config;
@@ -318,6 +318,33 @@ async function stopRecordingCommand(
     }
 }
 
+// Add a new command to cancel recording
+async function cancelRecordingCommand(
+    interaction: ChatInputCommandInteraction,
+    _recordable: Set<Snowflake>,
+    _recording: Set<Snowflake>,
+    _client: Client,
+    _connection?: VoiceConnection,
+) {
+    if (!interaction.guildId) {
+        await interaction.reply({ ephemeral: true, content: 'This command can only be used in a server.' });
+        return;
+    }
+
+    console.log(`Attempting to cancel recording for guild: ${interaction.guildId}`);
+    
+    if (isRecording(interaction.guildId)) {
+        const cancelled = cancelRecording(interaction.guildId); // Call the new cancel function
+        if (cancelled) {
+            await interaction.reply({ ephemeral: true, content: 'Recording cancelled!' });
+        } else {
+            await interaction.reply({ ephemeral: true, content: 'Failed to cancel recording. Please check the logs.' });
+        }
+    } else {
+        await interaction.reply({ ephemeral: true, content: 'No active recording to cancel.' });
+    }
+}
+
 export const interactionHandlers = new Map<
 	string,
 	(
@@ -332,3 +359,4 @@ interactionHandlers.set('join', join);
 interactionHandlers.set('record', record);
 interactionHandlers.set('leave', leave);
 interactionHandlers.set('stop_recording', stopRecordingCommand);
+interactionHandlers.set('cancel', cancelRecordingCommand);
