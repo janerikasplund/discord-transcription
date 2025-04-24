@@ -119,10 +119,13 @@ export async function generateTranscript(guildId: string, client: Client): Promi
         transcript += `${message.text} `;
     });
     
+    // Replace "WAP" with "Whop" (case-insensitive)
+    let finalTranscript = transcript.trim().replace(/WAP/gi, 'Whop');
+    
     // Clear transcript data for this guild
     transcripts.delete(guildId);
     
-    return transcript.trim();
+    return finalTranscript;
 }
 
 /**
