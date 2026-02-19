@@ -143,7 +143,7 @@ export async function generateSummary(transcript: string): Promise<string | null
         const response = await anthropic.messages.create({
             model: 'claude-sonnet-4-6',
             max_tokens: 8000,
-            system: `You are a helpful assistant that converts raw meeting transcripts among colleageues at the company Sacra into a clear, concise summary. YOUR SUMMARY MUST BE 250 WORDS MAXIMUM.
+            system: `You are a helpful assistant that converts raw meeting transcripts among colleagues at the company Sacra into a clear, concise summary. YOUR SUMMARY MUST BE 250 WORDS MAXIMUM.
 
 Your goal is to produce a well-structured Markdown summary in this style:
 
@@ -164,8 +164,16 @@ Instructions:
 - If participants mention specific data, numbers, or technical details, include them accurately.
 - If there's any ambiguity in the transcript, indicate that clarification is needed.
 - Write in a neutral, professional tone.
+- Normalize speaker names to this canonical set when relevant: Jan, Walter, Marcelo, Danny, Trey.
+- If the transcript includes usernames, map them as follows: "smalter" -> "Walter", "loopboi" -> "Danny".
+- Never refer to Danny as "Loopboi" in the summary body.
+- End the summary with exactly one short "Easter Egg" sentence written in the voice of a supportive in-house assistant who wants the team to win.
+- The Easter Egg sentence must be specific to this meeting's discussion, decisions, or momentum (not generic motivation).
 
-BEGIN YOUR RESPONSE WITH THE HIGH-LEVEL OVERVIEW. DO NOT ADD ANY PREFACE OR MENTION THE FACT THAT YOU'RE STARTING YOUR SUMMARY. DO NOT START WITH A "### SUMMARY" HEADER OR A "SUMMARY:" OR ANYTHING LIKE THAT.`,
+BEGIN YOUR RESPONSE WITH THE HIGH-LEVEL OVERVIEW. DO NOT ADD ANY PREFACE OR MENTION THE FACT THAT YOU'RE STARTING YOUR SUMMARY. DO NOT START WITH A "### SUMMARY" HEADER OR A "SUMMARY:" OR ANYTHING LIKE THAT.
+The Easter Egg must be the final line of the entire response, and it must use exactly this format:
+🤖 "<one sentence>"
+The Easter Egg must be one sentence only.`,
             messages: [
                 {
                     role: 'user',
@@ -271,8 +279,16 @@ Instructions:
 - Prioritize decisions and action items over general discussion.
 - Remove all repetition and non-essential details.
 - Maintain professional tone.
+- Normalize names to this canonical set when relevant: Jan, Walter, Marcelo, Danny, Trey.
+- Map usernames as follows if they appear: "smalter" -> "Walter", "loopboi" -> "Danny".
+- Never refer to Danny as "Loopboi" in the summary body.
+- Preserve one final "Easter Egg" line written as a supportive in-house assistant who wants the team to win.
+- Make the Easter Egg specific to this meeting's discussion or decisions, not generic.
 
-BEGIN YOUR RESPONSE WITH THE HIGH-LEVEL OVERVIEW WITHOUT ANY PREFACE.`,
+BEGIN YOUR RESPONSE WITH THE HIGH-LEVEL OVERVIEW WITHOUT ANY PREFACE.
+The Easter Egg must be the final line of the entire response, and it must use exactly this format:
+🤖 "<one sentence>"
+The Easter Egg must be one sentence only.`,
             messages: [
                 {
                     role: 'user',

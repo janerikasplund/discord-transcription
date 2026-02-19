@@ -17,3 +17,10 @@
 - Project: `discord-transcription`.
 - User wants Anthropic model references modernized from Sonnet 3.7-era naming to `claude-sonnet-4-6`.
 - Anthropic model is hardcoded in `src/transcriptManager.ts` at each `anthropic.messages.create` call; keep these in sync when changing models.
+- `@anthropic-ai/sdk@0.38.0` in this repo lacks typed support for Claude 4.6 `thinking: {type: "adaptive"}` and `effort`; model string `claude-sonnet-4-6` still compiles.
+- 2026-02-19: User chose to keep current Anthropic integration as-is for now (no SDK upgrade yet). Revisit later to adopt Claude 4.6 `thinking: {type: "adaptive"}` + `effort` once SDK support is upgraded.
+- 2026-02-19: Deepgram streaming model remains `nova-3` for this bot; keep README/docs aligned with runtime model setting.
+- 2026-02-19: Summary prompts now include canonical-name normalization (Jan, Walter, Marcelo, Danny, Trey) and username mapping (`smalter` -> Walter, `loopboi` -> Danny), plus a one-line `Easter Egg` ending.
+- 2026-02-19: Self mistake: introduced duplicate `keyterm` field while editing `src/createListeningStream.ts`; fixed immediately by removing the duplicate key.
+- 2026-02-19: User wants the summary ending `Easter Egg` to sound like a personal in-house assistant rooting for the team, with motivation grounded in the specific meeting content.
+- 2026-02-19: Easter Egg line must be the final line of summary output and formatted as dialogue with robot emoji + quotes: `🤖 "<one sentence>"`.

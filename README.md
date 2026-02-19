@@ -156,4 +156,4 @@ If you encounter issues with building native modules like `@discordjs/opus`, you
 
 - Make sure your Deepgram API key is valid and has the necessary permissions
 - Check that you have sufficient credits in your Deepgram account
-- The bot now uses the latest Deepgram SDK (v3.9.0) with the nova-2 model
+- The bot now uses the latest Deepgram SDK (v3.9.0) with the nova-3 model
