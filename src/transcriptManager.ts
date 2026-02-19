@@ -141,7 +141,7 @@ export async function generateSummary(transcript: string): Promise<string | null
     
     try {
         const response = await anthropic.messages.create({
-            model: 'claude-3-7-sonnet-latest',
+            model: 'claude-sonnet-4-6',
             max_tokens: 8000,
             system: `You are a helpful assistant that converts raw meeting transcripts among colleageues at the company Sacra into a clear, concise summary. YOUR SUMMARY MUST BE 250 WORDS MAXIMUM.
 
@@ -204,7 +204,7 @@ export async function generateTitle(summary: string): Promise<string> {
         const date = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
         
         const response = await anthropic.messages.create({
-            model: 'claude-3-7-sonnet-latest',
+            model: 'claude-sonnet-4-6',
             max_tokens: 50,
             system: `You are a helpful assistant that creates concise, descriptive titles for meeting summaries.
                 
@@ -252,7 +252,7 @@ async function getCondensedSummary(summary: string, maxWords: number): Promise<s
     
     try {
         const response = await anthropic.messages.create({
-            model: 'claude-3-7-sonnet-latest',
+            model: 'claude-sonnet-4-6',
             max_tokens: 4000,
             system: `You are a skilled assistant that condenses meeting summaries into shorter versions while preserving the most important information. 
             
