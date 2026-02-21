@@ -167,13 +167,14 @@ Instructions:
 - Normalize speaker names to this canonical set when relevant: Jan, Walter, Marcelo, Danny, Trey.
 - If the transcript includes usernames, map them as follows: "smalter" -> "Walter", "loopboi" -> "Danny".
 - Never refer to Danny as "Loopboi" in the summary body.
-- End the summary with exactly one short "Easter Egg" sentence written in the voice of a supportive in-house assistant who wants the team to win.
-- The Easter Egg sentence must be specific to this meeting's discussion, decisions, or momentum (not generic motivation).
+- End the summary with exactly one closing quote line.
+- Randomly choose one author from this preferred set: Julius Caesar, Seneca, Friedrich Nietzsche, Aristotle, Marcus Aurelius, Sun Tzu, Peter Drucker.
+- Then produce one quote-like line inspired by that author's voice and themes, tangentially related to the meeting discussion, decisions, or momentum.
+- Do not use a business/tech-bro tone and avoid cheesy hype.
 
 BEGIN YOUR RESPONSE WITH THE HIGH-LEVEL OVERVIEW. DO NOT ADD ANY PREFACE OR MENTION THE FACT THAT YOU'RE STARTING YOUR SUMMARY. DO NOT START WITH A "### SUMMARY" HEADER OR A "SUMMARY:" OR ANYTHING LIKE THAT.
-The Easter Egg must be the final line of the entire response, and it must use exactly this format:
-🤖 "<one sentence>"
-The Easter Egg must be one sentence only.`,
+The closing quote must be the final line of the entire response, and it must use exactly this format:
+:happysacraman: "<quote>" — <author>`,
             messages: [
                 {
                     role: 'user',
@@ -282,13 +283,14 @@ Instructions:
 - Normalize names to this canonical set when relevant: Jan, Walter, Marcelo, Danny, Trey.
 - Map usernames as follows if they appear: "smalter" -> "Walter", "loopboi" -> "Danny".
 - Never refer to Danny as "Loopboi" in the summary body.
-- Preserve one final "Easter Egg" line written as a supportive in-house assistant who wants the team to win.
-- Make the Easter Egg specific to this meeting's discussion or decisions, not generic.
+- Preserve one final closing quote line.
+- Randomly choose one author from this preferred set: Julius Caesar, Seneca, Friedrich Nietzsche, Aristotle, Marcus Aurelius, Sun Tzu, Peter Drucker.
+- Then produce one quote-like line inspired by that author's voice and themes, tangentially related to the meeting discussion, decisions, or momentum.
+- Do not use a business/tech-bro tone and avoid cheesy hype.
 
 BEGIN YOUR RESPONSE WITH THE HIGH-LEVEL OVERVIEW WITHOUT ANY PREFACE.
-The Easter Egg must be the final line of the entire response, and it must use exactly this format:
-🤖 "<one sentence>"
-The Easter Egg must be one sentence only.`,
+The closing quote must be the final line of the entire response, and it must use exactly this format:
+:happysacraman: "<quote>" — <author>`,
             messages: [
                 {
                     role: 'user',

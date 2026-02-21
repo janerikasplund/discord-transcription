@@ -24,3 +24,6 @@
 - 2026-02-19: Self mistake: introduced duplicate `keyterm` field while editing `src/createListeningStream.ts`; fixed immediately by removing the duplicate key.
 - 2026-02-19: User wants the summary ending `Easter Egg` to sound like a personal in-house assistant rooting for the team, with motivation grounded in the specific meeting content.
 - 2026-02-19: Easter Egg line must be the final line of summary output and formatted as dialogue with robot emoji + quotes: `🤖 "<one sentence>"`.
+- 2026-02-19: User prefers non-corny summary endings; switched final line format to `:happysacraman: "<one sentence>"` and toned voice down to understated, concrete operator-style language.
+- 2026-02-19: Reverted ending style from operator-note to classical quote line. Final line should be `:happysacraman: "<quote>" — <author>`, chosen from approved philosopher/strategist pool and tangentially related to meeting content.
+- 2026-02-19: User prefers no hardcoded quotes. Prompt now provides only preferred authors (Caesar, Seneca, Nietzsche, Aristotle, Aurelius, Sun Tzu, Drucker) and asks Claude to generate a quote-like line inspired by one selected author.
