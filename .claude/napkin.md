@@ -27,3 +27,4 @@
 - 2026-02-19: User prefers non-corny summary endings; switched final line format to `:happysacraman: "<one sentence>"` and toned voice down to understated, concrete operator-style language.
 - 2026-02-19: Reverted ending style from operator-note to classical quote line. Final line should be `:happysacraman: "<quote>" — <author>`, chosen from approved philosopher/strategist pool and tangentially related to meeting content.
 - 2026-02-19: User prefers no hardcoded quotes. Prompt now provides only preferred authors (Caesar, Seneca, Nietzsche, Aristotle, Aurelius, Sun Tzu, Drucker) and asks Claude to generate a quote-like line inspired by one selected author.
+- 2026-02-19: Removed `:happysacraman:` from final quote line because it did not render correctly in Discord; format is now `"<quote>" — <author>`.

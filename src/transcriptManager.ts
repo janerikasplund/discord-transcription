@@ -174,7 +174,7 @@ Instructions:
 
 BEGIN YOUR RESPONSE WITH THE HIGH-LEVEL OVERVIEW. DO NOT ADD ANY PREFACE OR MENTION THE FACT THAT YOU'RE STARTING YOUR SUMMARY. DO NOT START WITH A "### SUMMARY" HEADER OR A "SUMMARY:" OR ANYTHING LIKE THAT.
 The closing quote must be the final line of the entire response, and it must use exactly this format:
-:happysacraman: "<quote>" — <author>`,
+"<quote>" — <author>`,
             messages: [
                 {
                     role: 'user',
@@ -290,7 +290,7 @@ Instructions:
 
 BEGIN YOUR RESPONSE WITH THE HIGH-LEVEL OVERVIEW WITHOUT ANY PREFACE.
 The closing quote must be the final line of the entire response, and it must use exactly this format:
-:happysacraman: "<quote>" — <author>`,
+"<quote>" — <author>`,
             messages: [
                 {
                     role: 'user',
