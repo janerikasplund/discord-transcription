@@ -161,6 +161,7 @@ Instructions:
 - Use H3 headings and bullet points to keep the notes scannable and organized.
 - No line breaks between sections.
 - Be concise—avoid unnecessary repetition or filler text.
+- Target approximately 1400 characters total so the summary usually fits in one Discord message with metadata.
 - If participants mention specific data, numbers, or technical details, include them accurately.
 - If there's any ambiguity in the transcript, indicate that clarification is needed.
 - Write in a neutral, professional tone.
@@ -248,70 +249,64 @@ Your response should ONLY include the title, nothing else.`,
     }
 }
 
-/**
- * Request a more concise summary from Claude
- */
-async function getCondensedSummary(summary: string, maxWords: number): Promise<string | null> {
-    if (!claudeApiKey || !anthropic) {
-        console.error('❌ No Claude API key found in auth.json or client initialization failed!');
-        return null;
-    }
-    
-    console.log(`🤖 Requesting condensed summary (max ${maxWords} words) using Claude...`);
-    
-    try {
-        const response = await anthropic.messages.create({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 4000,
-            system: `You are a skilled assistant that condenses meeting summaries into shorter versions while preserving the most important information. 
-            
-Your task is to condense the provided summary to be no more than ${maxWords} words maximum, while maintaining the following structure:
+function splitSummaryIntoSections(summary: string): string[] {
+    const trimmed = summary.trim();
+    if (!trimmed) return [];
 
-### High-Level Overview
-- Essential context and purpose
-### Key Discussion Points
-- Only the most critical information
-### Decisions & Outcomes
-- Only definitive decisions and immediate action items
+    // Split only at section boundaries; each block starts with an H3 heading.
+    const sections = trimmed
+        .split(/\n(?=###\s)/g)
+        .map(section => section.trim())
+        .filter(Boolean);
 
-Instructions:
-- Use H3 headings and bullet points.
-- Be extremely concise and direct.
-- Prioritize decisions and action items over general discussion.
-- Remove all repetition and non-essential details.
-- Maintain professional tone.
-- Normalize names to this canonical set when relevant: Jan, Walter, Marcelo, Danny, Trey.
-- Map usernames as follows if they appear: "smalter" -> "Walter", "loopboi" -> "Danny".
-- Never refer to Danny as "Loopboi" in the summary body.
-- Preserve one final closing quote line.
-- Randomly choose one author from this preferred set: Julius Caesar, Seneca, Friedrich Nietzsche, Aristotle, Marcus Aurelius, Sun Tzu, Peter Drucker.
-- Then produce one quote-like line inspired by that author's voice and themes, tangentially related to the meeting discussion, decisions, or momentum.
-- Do not use a business/tech-bro tone and avoid cheesy hype.
+    return sections.length > 0 ? sections : [trimmed];
+}
 
-BEGIN YOUR RESPONSE WITH THE HIGH-LEVEL OVERVIEW WITHOUT ANY PREFACE.
-The closing quote must be the final line of the entire response, and it must use exactly this format:
-"<quote>" — <author>`,
-            messages: [
-                {
-                    role: 'user',
-                    content: summary
-                }
-            ]
-        });
-        
-        // Check if the content is a text block
-        if (response.content[0].type === 'text') {
-            const condensedSummary = response.content[0].text;
-            console.log(`✅ Generated condensed summary (${condensedSummary.length} chars)`);
-            return condensedSummary;
-        } else {
-            console.error('❌ Unexpected response format from Claude');
-            return null;
+function chunkSectionsForDiscord(
+    title: string,
+    recordedUsers: string[],
+    summary: string,
+    discordCharLimit = 1950
+): string[] {
+    const header = `**${title}**\n\n**Recording finished for:** ${recordedUsers.join(', ')}\n\n**Summary:**\n`;
+    const continuationHeader = `**${title}**\n\n**Recording finished for:** ${recordedUsers.join(', ')}\n\n**Summary (continued):**\n`;
+    const sections = splitSummaryIntoSections(summary);
+
+    // Fast path: one message fits.
+    const fullMessage = `${header}${summary}`;
+    if (fullMessage.length <= discordCharLimit) return [fullMessage];
+
+    // Build messages using whole sections only.
+    const messages: string[] = [];
+    let current = header;
+
+    for (const section of sections) {
+        const separator = current.endsWith('\n') ? '' : '\n\n';
+        const candidate = `${current}${separator}${section}`;
+
+        if (candidate.length <= discordCharLimit) {
+            current = candidate;
+            continue;
         }
-    } catch (error) {
-        console.error(`❌ Error generating condensed summary: ${error}`);
-        return null;
+
+        // Commit current message and start a new continuation message.
+        if (current !== header && current !== continuationHeader) {
+            messages.push(current);
+            current = `${continuationHeader}${section}`;
+            continue;
+        }
+
+        // If a single section cannot fit even alone, send it whole in its own message.
+        // This preserves "no split within a section" even if Discord rejects due size.
+        messages.push(current);
+        current = `${continuationHeader}${section}`;
     }
+
+    if (current !== header && current !== continuationHeader) {
+        messages.push(current);
+    }
+
+    return messages;
 }
 
 /**
@@ -336,48 +331,16 @@ export async function sendTranscriptAndSummary(
             return;
         }
         
-        // Prepare summary content
-        let summaryContent = `**${title}**\n\n**Recording finished for:** ${recordedUsers.join(', ')}\n\n**Summary:**\n${summary}`;
-        
-        // Check if the message exceeds Discord's character limit (1950 to leave some buffer)
-        const DISCORD_CHAR_LIMIT = 1950;
-        let attempts = 0;
-        const MAX_ATTEMPTS = 3;
-        let currentSummary = summary;
-        
-        while (summaryContent.length > DISCORD_CHAR_LIMIT && attempts < MAX_ATTEMPTS) {
-            console.log(`⚠️ Summary content exceeds Discord character limit (${summaryContent.length} > ${DISCORD_CHAR_LIMIT})`);
-            
-            attempts++;
-            // Calculate a reasonable word count target (roughly 75% of current length each time)
-            const currentWordCount = currentSummary.split(/\s+/).length;
-            const targetWordCount = Math.floor(currentWordCount * 0.75);
-            
-            console.log(`🔄 Attempt ${attempts}/${MAX_ATTEMPTS}: Requesting condensed summary (${targetWordCount} words)`);
-            
-            // Get a more condensed summary
-            const condensedSummary = await getCondensedSummary(currentSummary, targetWordCount);
-            
-            if (condensedSummary) {
-                currentSummary = condensedSummary;
-                summaryContent = `**${title}**\n\n**Recording finished for:** ${recordedUsers.join(', ')}\n\n**Summary:**\n${currentSummary}`;
-                console.log(`📏 New summary content length: ${summaryContent.length} chars`);
-            } else {
-                // If we can't get a condensed summary, break the loop and we'll handle it below
-                console.error('❌ Failed to condense summary');
-                break;
+        // Split summary into one or more Discord-safe messages at section boundaries.
+        const summaryMessages = chunkSectionsForDiscord(title, recordedUsers, summary, 1950);
+        console.log(`📨 Sending summary in ${summaryMessages.length} message(s)`);
+
+        for (const [index, message] of summaryMessages.entries()) {
+            if (message.length > 1950) {
+                console.error(`❌ Summary message part ${index + 1} exceeds Discord limit (${message.length} chars).`);
             }
+            await transcriptChannel.send(message);
         }
-        
-        // If still too long after all attempts, truncate with notice
-        if (summaryContent.length > DISCORD_CHAR_LIMIT) {
-            console.warn(`⚠️ Still exceeding Discord limit after ${attempts} attempts. Truncating.`);
-            summaryContent = summaryContent.substring(0, DISCORD_CHAR_LIMIT - 100) + 
-                '\n\n*[Summary truncated due to Discord character limit. See full transcript file for details.]*';
-        }
-        
-        // Send summary
-        await transcriptChannel.send(summaryContent);
         
         // Format the transcript in markdown
         const transcriptMd = `# ${title}\n\n${transcript}`;
