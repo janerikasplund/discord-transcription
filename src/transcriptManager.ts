@@ -269,14 +269,13 @@ function chunkSectionsForDiscord(
     discordCharLimit = 1950
 ): string[] {
     const header = `**${title}**\n\n**Recording finished for:** ${recordedUsers.join(', ')}\n\n**Summary:**\n`;
-    const continuationHeader = `**${title}**\n\n**Recording finished for:** ${recordedUsers.join(', ')}\n\n**Summary (continued):**\n`;
     const sections = splitSummaryIntoSections(summary);
 
     // Fast path: one message fits.
     const fullMessage = `${header}${summary}`;
     if (fullMessage.length <= discordCharLimit) return [fullMessage];
 
-    // Build messages using whole sections only.
+    // Build messages using whole sections only. Only the first message includes metadata/header.
     const messages: string[] = [];
     let current = header;
 
@@ -289,20 +288,20 @@ function chunkSectionsForDiscord(
             continue;
         }
 
-        // Commit current message and start a new continuation message.
-        if (current !== header && current !== continuationHeader) {
+        // Commit current message and start a new message with only remaining summary sections.
+        if (current !== header) {
             messages.push(current);
-            current = `${continuationHeader}${section}`;
+            current = section;
             continue;
         }
 
         // If a single section cannot fit even alone, send it whole in its own message.
         // This preserves "no split within a section" even if Discord rejects due size.
         messages.push(current);
-        current = `${continuationHeader}${section}`;
+        current = section;
     }
 
-    if (current !== header && current !== continuationHeader) {
+    if (current !== header) {
         messages.push(current);
     }
 

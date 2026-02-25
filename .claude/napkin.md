@@ -29,3 +29,4 @@
 - 2026-02-19: User prefers no hardcoded quotes. Prompt now provides only preferred authors (Caesar, Seneca, Nietzsche, Aristotle, Aurelius, Sun Tzu, Drucker) and asks Claude to generate a quote-like line inspired by one selected author.
 - 2026-02-19: Removed `:happysacraman:` from final quote line because it did not render correctly in Discord; format is now `"<quote>" — <author>`.
 - 2026-02-19: Removed re-condensing/truncation flow for summaries. New behavior: ask Claude to target ~1400 chars and split across multiple Discord messages only at section boundaries when needed.
+- 2026-02-19: For split summaries, user wants original single-summary visual style preserved: title/recording/`Summary:` only once in first message, with no repeated `Summary (continued)` noise in later messages.
