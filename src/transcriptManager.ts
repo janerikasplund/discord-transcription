@@ -35,6 +35,20 @@ interface TranscriptMessage {
 
 // Map of guild ID -> Map of user ID -> transcript data
 const transcripts = new Map<string, Map<string, TranscriptData>>();
+const QUOTE_AUTHORS = [
+    'Julius Caesar',
+    'Seneca',
+    'Friedrich Nietzsche',
+    'Aristotle',
+    'Marcus Aurelius',
+    'Sun Tzu',
+    'Peter Drucker',
+] as const;
+
+function pickRandomAuthor(): string {
+    const index = Math.floor(Math.random() * QUOTE_AUTHORS.length);
+    return QUOTE_AUTHORS[index];
+}
 
 /**
  * Add a message to the transcript
@@ -137,7 +151,8 @@ export async function generateSummary(transcript: string): Promise<string | null
         return null;
     }
     
-    console.log(`🤖 Generating summary using Claude...`);
+    const selectedAuthor = pickRandomAuthor();
+    console.log(`🤖 Generating summary using Claude (quote author: ${selectedAuthor})...`);
     
     try {
         const response = await anthropic.messages.create({
@@ -169,13 +184,13 @@ Instructions:
 - If the transcript includes usernames, map them as follows: "smalter" -> "Walter", "loopboi" -> "Danny".
 - Never refer to Danny as "Loopboi" in the summary body.
 - End the summary with exactly one closing quote line.
-- Randomly choose one author from this preferred set: Julius Caesar, Seneca, Friedrich Nietzsche, Aristotle, Marcus Aurelius, Sun Tzu, Peter Drucker.
-- Then produce one quote-like line inspired by that author's voice and themes, tangentially related to the meeting discussion, decisions, or momentum.
+- The quote author for this summary is fixed to: ${selectedAuthor}.
+- Produce one quote-like line inspired by ${selectedAuthor}'s voice and themes, tangentially related to the meeting discussion, decisions, or momentum.
 - Do not use a business/tech-bro tone and avoid cheesy hype.
 
 BEGIN YOUR RESPONSE WITH THE HIGH-LEVEL OVERVIEW. DO NOT ADD ANY PREFACE OR MENTION THE FACT THAT YOU'RE STARTING YOUR SUMMARY. DO NOT START WITH A "### SUMMARY" HEADER OR A "SUMMARY:" OR ANYTHING LIKE THAT.
 The closing quote must be the final line of the entire response, and it must use exactly this format:
-"<quote>" — <author>`,
+"<quote>" — ${selectedAuthor}`,
             messages: [
                 {
                     role: 'user',
