@@ -3,12 +3,15 @@
 ## Corrections
 | Date | Source | What Went Wrong | What To Do Instead |
 |------|--------|----------------|-------------------|
+| 2026-03-03 | self | Initially assumed `AbortError` during voice join meant the connection was explicitly destroyed by overlapping starts. | Confirm `@discordjs/voice` error semantics in source; `entersState(..., timeout)` aborts with `AbortError` on timeout. |
 
 ## User Preferences
 - Keep responses concise and practical.
 
 ## Patterns That Work
 - Use `rg` for fast repo-wide searches before patching.
+- For auto voice-start reliability, gate per-guild starts with a pending set and destroy stale `getVoiceConnection(guildId)` objects after failed readiness waits.
+- For npm release-date checks, parse `npm view <pkg> time --json` via Node and extract specific versions to avoid massive logs.
 
 ## Patterns That Don't Work
 - None recorded yet.
@@ -31,3 +34,6 @@
 - 2026-02-19: Removed re-condensing/truncation flow for summaries. New behavior: ask Claude to target ~1400 chars and split across multiple Discord messages only at section boundaries when needed.
 - 2026-02-19: For split summaries, user wants original single-summary visual style preserved: title/recording/`Summary:` only once in first message, with no repeated `Summary (continued)` noise in later messages.
 - 2026-02-19: Quote author selection now happens in code via random choice, then prompt pins Claude to that exact author attribution to avoid repeated Sun Tzu outputs.
+- 2026-03-03: In this codebase, `entersState(connection, VoiceConnectionStatus.Ready, 20e3)` throws `AbortError: The operation was aborted` on timeout, so logs need extra state/permission context to identify root cause.
+- 2026-03-03: Auto-start now preflights `ViewChannel`/`Connect` and `channel.full` before voice join to turn silent 20s timeouts into immediate actionable errors.
+- 2026-03-03: Registry check: project lockfile pins `@discordjs/voice@0.18.0` (published 2024-11-17) and `discord.js@14.18.0` (published 2025-02-10), so a last-week dependency update is unlikely unless deploy pipeline ignored lockfile.

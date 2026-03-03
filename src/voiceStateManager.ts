@@ -1,5 +1,5 @@
-import { Client, VoiceState, GuildMember, Collection } from 'discord.js';
-import { joinVoiceChannel, VoiceConnection, entersState, VoiceConnectionStatus } from '@discordjs/voice';
+import { Client, VoiceState, GuildMember, Collection, PermissionsBitField } from 'discord.js';
+import { joinVoiceChannel, VoiceConnection, entersState, VoiceConnectionStatus, getVoiceConnection } from '@discordjs/voice';
 import { createListeningStream } from './createListeningStream';
 import { generateTranscript, generateSummary, generateTitle, sendTranscriptAndSummary } from './transcriptManager';
 import { getTranscriptChannel } from './utils';
@@ -21,6 +21,7 @@ interface RecordingData {
 }
 
 const activeRecordings = new Map<string, RecordingData>();
+const pendingAutoStarts = new Set<string>();
 
 /**
  * Handle voice state updates to automatically start/stop recordings
@@ -82,29 +83,105 @@ async function handleMemberJoin(state: VoiceState, client: Client) {
             
             return;
         }
+
+        if (pendingAutoStarts.has(guildId)) {
+            console.log(`⏳ Automatic recording start already in progress for guild ${guildId}`);
+            return;
+        }
+
+        const attemptId = `${guildId}-${Date.now()}`;
+        const attemptStartedAt = Date.now();
+        const humanMemberNames = humanMembers.map(member => member.displayName).join(', ');
+        let connection: VoiceConnection | null = null;
         
-        console.log(`🎙️ Starting automatic recording in ${channel.name} with ${memberCount} members`);
+        console.log(
+            `🎙️ [auto-start:${attemptId}] Starting in ${channel.name} (${channel.id}) with ${memberCount} members: ${humanMemberNames}`
+        );
+        pendingAutoStarts.add(guildId);
         
         try {
+            const botMember = channel.guild.members.me;
+            if (!botMember) {
+                console.error(`❌ [auto-start:${attemptId}] Cannot start: bot member cache is unavailable in guild ${guildId}`);
+                return;
+            }
+
+            console.log(
+                `ℹ️ [auto-start:${attemptId}] Bot voice state before join: channelId=${botMember.voice.channelId ?? 'none'}`
+            );
+
+            const permissions = channel.permissionsFor(botMember);
+            const missingPermissions: string[] = [];
+            if (!permissions?.has(PermissionsBitField.Flags.ViewChannel)) missingPermissions.push('ViewChannel');
+            if (!permissions?.has(PermissionsBitField.Flags.Connect)) missingPermissions.push('Connect');
+            if (missingPermissions.length > 0) {
+                console.error(
+                    `❌ [auto-start:${attemptId}] Cannot start in ${channel.name}. Missing permissions: ${missingPermissions.join(', ')}`
+                );
+                return;
+            }
+            if (channel.full) {
+                console.error(`❌ [auto-start:${attemptId}] Cannot start in ${channel.name}. Voice channel is full.`);
+                return;
+            }
+
+            const existingConnection = getVoiceConnection(guildId);
+            if (existingConnection && existingConnection.state.status !== VoiceConnectionStatus.Destroyed) {
+                console.log(
+                    `🧹 [auto-start:${attemptId}] Found existing voice connection in state ${existingConnection.state.status} for channel ${existingConnection.joinConfig.channelId}. Destroying before retrying.`
+                );
+                existingConnection.destroy();
+            }
+
             // Join the voice channel
-            const connection = joinVoiceChannel({
+            connection = joinVoiceChannel({
                 channelId: channel.id,
                 guildId: channel.guild.id,
                 selfDeaf: false,
                 selfMute: true,
                 adapterCreator: channel.guild.voiceAdapterCreator,
+                debug: true,
             });
+
+            const stateLogger = (oldState: { status: VoiceConnectionStatus }, newState: { status: VoiceConnectionStatus }) => {
+                const elapsedMs = Date.now() - attemptStartedAt;
+                console.log(
+                    `🔌 [auto-start:${attemptId}] state ${oldState.status} -> ${newState.status} (+${elapsedMs}ms)`
+                );
+            };
+            const errorLogger = (error: Error) => {
+                const elapsedMs = Date.now() - attemptStartedAt;
+                console.error(
+                    `❌ [auto-start:${attemptId}] Voice connection error before ready (+${elapsedMs}ms): ${error.name}: ${error.message}`
+                );
+            };
+            const debugLogger = (message: string) => {
+                const elapsedMs = Date.now() - attemptStartedAt;
+                console.log(`🧪 [auto-start:${attemptId}] voice debug (+${elapsedMs}ms): ${message}`);
+            };
+            connection.on('stateChange', stateLogger);
+            connection.on('error', errorLogger);
+            connection.on('debug', debugLogger);
             
             // Wait for the connection to be ready
-            await entersState(connection, VoiceConnectionStatus.Ready, 20e3);
-            console.log(`✅ Connected to voice channel ${channel.name}`);
+            try {
+                await entersState(connection, VoiceConnectionStatus.Ready, 20e3);
+            } finally {
+                connection.off('stateChange', stateLogger);
+                connection.off('error', errorLogger);
+                connection.off('debug', debugLogger);
+            }
+            console.log(`✅ [auto-start:${attemptId}] Connected to voice channel ${channel.name}`);
             
             // Initialize recording data
             const recordable = new Set<string>();
             const recording = new Set<string>();
             
+            // Recompute in case members joined while the connection was being established.
+            const currentHumanMembers = channel.members.filter(member => !member.user.bot);
+
             // Add all current members to recordable
-            humanMembers.forEach(member => {
+            currentHumanMembers.forEach(member => {
                 recordable.add(member.id);
             });
             
@@ -124,7 +201,7 @@ async function handleMemberJoin(state: VoiceState, client: Client) {
                 client, 
                 guildId, 
                 channel.name, 
-                humanMembers
+                currentHumanMembers
             );
             
             if (notificationMessage) {
@@ -134,9 +211,40 @@ async function handleMemberJoin(state: VoiceState, client: Client) {
             
             // Set up the recording
             setupRecording(connection, recordable, recording, client, guildId);
+            console.log(
+                `✅ [auto-start:${attemptId}] Recording setup complete for guild ${guildId} in ${channel.name}`
+            );
             
         } catch (error) {
-            console.error(`❌ Error starting automatic recording: ${error}`);
+            const elapsedMs = Date.now() - attemptStartedAt;
+            const trackedConnection = getVoiceConnection(guildId);
+            if (error instanceof Error) {
+                console.error(
+                    `❌ [auto-start:${attemptId}] Failed after ${elapsedMs}ms: ${error.name}: ${error.message}`
+                );
+                if (error.stack) {
+                    console.error(`❌ [auto-start:${attemptId}] Stack: ${error.stack}`);
+                }
+            } else {
+                console.error(`❌ [auto-start:${attemptId}] Failed after ${elapsedMs}ms: ${error}`);
+            }
+
+            console.error(
+                `❌ [auto-start:${attemptId}] Snapshot: localConnectionState=${connection?.state.status ?? 'none'}, trackedConnectionState=${trackedConnection?.state.status ?? 'none'}, trackedChannelId=${trackedConnection?.joinConfig.channelId ?? 'none'}, botVoiceChannel=${channel.guild.members.me?.voice.channelId ?? 'none'}`
+            );
+
+            if (trackedConnection && trackedConnection.state.status !== VoiceConnectionStatus.Destroyed) {
+                try {
+                    trackedConnection.destroy();
+                    console.log(`🧹 [auto-start:${attemptId}] Cleaned up stale voice connection after failed start.`);
+                } catch (cleanupError) {
+                    console.error(`❌ [auto-start:${attemptId}] Error cleaning up failed voice connection: ${cleanupError}`);
+                }
+            }
+        } finally {
+            pendingAutoStarts.delete(guildId);
+            const elapsedMs = Date.now() - attemptStartedAt;
+            console.log(`🏁 [auto-start:${attemptId}] Finished (elapsed ${elapsedMs}ms)`);
         }
     }
 }

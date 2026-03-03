@@ -1,5 +1,5 @@
-import { Client, GatewayIntentBits, Interaction, ChannelType, TextChannel, DiscordAPIError } from 'discord.js';
-import { getVoiceConnection } from '@discordjs/voice';
+import { Client, GatewayIntentBits, Interaction, ChannelType, TextChannel, DiscordAPIError, version as discordJsVersion } from 'discord.js';
+import { getVoiceConnection, version as discordVoiceVersion } from '@discordjs/voice';
 import { deploy } from './deploy';
 import { interactionHandlers } from './interactions';
 import { handleVoiceStateUpdate, isRecording, stopRecording } from './voiceStateManager';
@@ -42,6 +42,7 @@ const client = new Client({
 client.on('ready', () => {
     console.log(`🤖 Bot is ready! Logged in as ${client.user?.tag}`);
     console.log(`🌐 Connected to ${client.guilds.cache.size} servers`);
+    console.log(`🧰 Runtime: node ${process.version}, discord.js ${discordJsVersion}, @discordjs/voice ${discordVoiceVersion}`);
     client.guilds.cache.forEach(guild => {
         console.log(`   - ${guild.name} (${guild.id})`);
     });
