@@ -37,3 +37,4 @@
 - 2026-03-03: In this codebase, `entersState(connection, VoiceConnectionStatus.Ready, 20e3)` throws `AbortError: The operation was aborted` on timeout, so logs need extra state/permission context to identify root cause.
 - 2026-03-03: Auto-start now preflights `ViewChannel`/`Connect` and `channel.full` before voice join to turn silent 20s timeouts into immediate actionable errors.
 - 2026-03-03: Registry check: project lockfile pins `@discordjs/voice@0.18.0` (published 2024-11-17) and `discord.js@14.18.0` (published 2025-02-10), so a last-week dependency update is unlikely unless deploy pipeline ignored lockfile.
+- 2026-03-03: Observed prod auto-start failure pattern: networking state `Identifying -> Closed` within ~300ms, voice status `connecting -> signalling`, then `entersState(...Ready...)` aborts at 20s while bot remains in channel. Added one-time join retry with full connection teardown.

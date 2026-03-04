@@ -133,45 +133,84 @@ async function handleMemberJoin(state: VoiceState, client: Client) {
                 existingConnection.destroy();
             }
 
-            // Join the voice channel
-            connection = joinVoiceChannel({
-                channelId: channel.id,
-                guildId: channel.guild.id,
-                selfDeaf: false,
-                selfMute: true,
-                adapterCreator: channel.guild.voiceAdapterCreator,
-                debug: true,
-            });
+            // Join the voice channel, with one retry after full cleanup on timeout-style aborts.
+            let lastJoinError: unknown = null;
+            for (let joinAttempt = 1; joinAttempt <= 2; joinAttempt++) {
+                connection = joinVoiceChannel({
+                    channelId: channel.id,
+                    guildId: channel.guild.id,
+                    selfDeaf: false,
+                    selfMute: true,
+                    adapterCreator: channel.guild.voiceAdapterCreator,
+                    debug: true,
+                });
 
-            const stateLogger = (oldState: { status: VoiceConnectionStatus }, newState: { status: VoiceConnectionStatus }) => {
-                const elapsedMs = Date.now() - attemptStartedAt;
-                console.log(
-                    `🔌 [auto-start:${attemptId}] state ${oldState.status} -> ${newState.status} (+${elapsedMs}ms)`
-                );
-            };
-            const errorLogger = (error: Error) => {
-                const elapsedMs = Date.now() - attemptStartedAt;
-                console.error(
-                    `❌ [auto-start:${attemptId}] Voice connection error before ready (+${elapsedMs}ms): ${error.name}: ${error.message}`
-                );
-            };
-            const debugLogger = (message: string) => {
-                const elapsedMs = Date.now() - attemptStartedAt;
-                console.log(`🧪 [auto-start:${attemptId}] voice debug (+${elapsedMs}ms): ${message}`);
-            };
-            connection.on('stateChange', stateLogger);
-            connection.on('error', errorLogger);
-            connection.on('debug', debugLogger);
-            
-            // Wait for the connection to be ready
-            try {
-                await entersState(connection, VoiceConnectionStatus.Ready, 20e3);
-            } finally {
-                connection.off('stateChange', stateLogger);
-                connection.off('error', errorLogger);
-                connection.off('debug', debugLogger);
+                console.log(`ℹ️ [auto-start:${attemptId}] Join attempt ${joinAttempt}/2 started`);
+
+                const stateLogger = (
+                    oldState: { status: VoiceConnectionStatus; reason?: number; closeCode?: number },
+                    newState: { status: VoiceConnectionStatus; reason?: number; closeCode?: number }
+                ) => {
+                    const elapsedMs = Date.now() - attemptStartedAt;
+                    const details = newState.status === VoiceConnectionStatus.Disconnected
+                        ? ` reason=${newState.reason ?? 'n/a'} closeCode=${newState.closeCode ?? 'n/a'}`
+                        : '';
+                    console.log(
+                        `🔌 [auto-start:${attemptId}] state ${oldState.status} -> ${newState.status}${details} (+${elapsedMs}ms)`
+                    );
+                };
+                const errorLogger = (error: Error) => {
+                    const elapsedMs = Date.now() - attemptStartedAt;
+                    console.error(
+                        `❌ [auto-start:${attemptId}] Voice connection error before ready (+${elapsedMs}ms): ${error.name}: ${error.message}`
+                    );
+                };
+                const debugLogger = (message: string) => {
+                    const elapsedMs = Date.now() - attemptStartedAt;
+                    console.log(`🧪 [auto-start:${attemptId}] voice debug (+${elapsedMs}ms): ${message}`);
+                };
+                connection.on('stateChange', stateLogger);
+                connection.on('error', errorLogger);
+                connection.on('debug', debugLogger);
+                
+                try {
+                    await entersState(connection, VoiceConnectionStatus.Ready, 20e3);
+                    console.log(`✅ [auto-start:${attemptId}] Connected to voice channel ${channel.name}`);
+                    lastJoinError = null;
+                    break;
+                } catch (joinError) {
+                    lastJoinError = joinError;
+                    const elapsedMs = Date.now() - attemptStartedAt;
+                    if (joinError instanceof Error) {
+                        console.error(
+                            `❌ [auto-start:${attemptId}] Join attempt ${joinAttempt}/2 failed after ${elapsedMs}ms: ${joinError.name}: ${joinError.message}`
+                        );
+                    } else {
+                        console.error(
+                            `❌ [auto-start:${attemptId}] Join attempt ${joinAttempt}/2 failed after ${elapsedMs}ms: ${joinError}`
+                        );
+                    }
+
+                    const trackedConnection = getVoiceConnection(guildId);
+                    if (trackedConnection && trackedConnection.state.status !== VoiceConnectionStatus.Destroyed) {
+                        trackedConnection.destroy();
+                        console.log(`🧹 [auto-start:${attemptId}] Destroyed connection after failed join attempt ${joinAttempt}/2`);
+                    }
+
+                    if (joinAttempt < 2) {
+                        console.log(`🔁 [auto-start:${attemptId}] Retrying automatic join in 1000ms`);
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                } finally {
+                    connection.off('stateChange', stateLogger);
+                    connection.off('error', errorLogger);
+                    connection.off('debug', debugLogger);
+                }
             }
-            console.log(`✅ [auto-start:${attemptId}] Connected to voice channel ${channel.name}`);
+
+            if (lastJoinError) {
+                throw lastJoinError;
+            }
             
             // Initialize recording data
             const recordable = new Set<string>();
