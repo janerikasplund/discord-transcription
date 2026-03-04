@@ -20,6 +20,7 @@ async function createReadyConnection(
 	context: string
 ): Promise<VoiceConnection> {
 	let lastError: unknown = null;
+	const startedAt = Date.now();
 
 	for (let attempt = 1; attempt <= 2; attempt++) {
 		const existing = getVoiceConnection(channel.guild.id);
@@ -39,6 +40,28 @@ async function createReadyConnection(
 
 		console.log(`[${context}] Join attempt ${attempt}/2 started for channel ${channel.name} (${channel.id})`);
 
+		const stateLogger = (
+			oldState: { status: VoiceConnectionStatus; reason?: number; closeCode?: number },
+			newState: { status: VoiceConnectionStatus; reason?: number; closeCode?: number }
+		) => {
+			const elapsedMs = Date.now() - startedAt;
+			const details = newState.status === VoiceConnectionStatus.Disconnected
+				? ` reason=${newState.reason ?? 'n/a'} closeCode=${newState.closeCode ?? 'n/a'}`
+				: '';
+			console.log(`[${context}] state ${oldState.status} -> ${newState.status}${details} (+${elapsedMs}ms)`);
+		};
+		const errorLogger = (error: Error) => {
+			const elapsedMs = Date.now() - startedAt;
+			console.error(`[${context}] connection error (+${elapsedMs}ms): ${error.name}: ${error.message}`);
+		};
+		const debugLogger = (message: string) => {
+			const elapsedMs = Date.now() - startedAt;
+			console.log(`[${context}] voice debug (+${elapsedMs}ms): ${message}`);
+		};
+		nextConnection.on('stateChange', stateLogger);
+		nextConnection.on('error', errorLogger);
+		nextConnection.on('debug', debugLogger);
+
 		try {
 			await entersState(nextConnection, VoiceConnectionStatus.Ready, 20e3);
 			console.log(`[${context}] Voice connection is ready`);
@@ -46,12 +69,19 @@ async function createReadyConnection(
 		} catch (error) {
 			lastError = error;
 			console.error(`[${context}] Join attempt ${attempt}/2 failed:`, error);
+			console.error(
+				`[${context}] Snapshot after failed attempt ${attempt}/2: localState=${nextConnection.state.status}, trackedState=${getVoiceConnection(channel.guild.id)?.state.status ?? 'none'}`
+			);
 			if (nextConnection.state.status !== VoiceConnectionStatus.Destroyed) {
 				nextConnection.destroy();
 			}
 			if (attempt < 2) {
 				await new Promise(resolve => setTimeout(resolve, 1000));
 			}
+		} finally {
+			nextConnection.off('stateChange', stateLogger);
+			nextConnection.off('error', errorLogger);
+			nextConnection.off('debug', debugLogger);
 		}
 	}
 

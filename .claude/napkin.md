@@ -40,3 +40,5 @@
 - 2026-03-03: Observed prod auto-start failure pattern: networking state `Identifying -> Closed` within ~300ms, voice status `connecting -> signalling`, then `entersState(...Ready...)` aborts at 20s while bot remains in channel. Added one-time join retry with full connection teardown.
 - 2026-03-04: Manual `/join` and `/record` can reuse non-ready lingering voice connections and repeatedly timeout. Added retrying connection builder + force-destroy for stale non-ready connections in `src/interactions.ts`.
 - 2026-03-04: `/record` can exceed Discord interaction window when waiting on voice readiness; always defer immediately and respond via `editReply` to avoid `DiscordAPIError[10062]: Unknown interaction`.
+- 2026-03-04: Upgraded runtime voice deps to `discord.js@14.25.1` and `@discordjs/voice@0.19.0`; old versions were `14.18.0`/`0.18.0`.
+- 2026-03-04: Added manual `/join` connection debug/state/error logs in `createReadyConnection` to diagnose handshake failures outside auto-start path.
