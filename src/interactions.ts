@@ -15,6 +15,49 @@ function getDisplayName(interaction: ChatInputCommandInteraction, client: Client
 	return (user ? `${user.username}` : userId);
 }
 
+async function createReadyConnection(
+	channel: NonNullable<GuildMember['voice']['channel']>,
+	context: string
+): Promise<VoiceConnection> {
+	let lastError: unknown = null;
+
+	for (let attempt = 1; attempt <= 2; attempt++) {
+		const existing = getVoiceConnection(channel.guild.id);
+		if (existing && existing.state.status !== VoiceConnectionStatus.Destroyed) {
+			console.log(`[${context}] Destroying existing ${existing.state.status} connection before attempt ${attempt}/2`);
+			existing.destroy();
+		}
+
+		const nextConnection = joinVoiceChannel({
+			channelId: channel.id,
+			guildId: channel.guild.id,
+			selfDeaf: false,
+			selfMute: true,
+			adapterCreator: channel.guild.voiceAdapterCreator as DiscordGatewayAdapterCreator,
+			debug: true,
+		});
+
+		console.log(`[${context}] Join attempt ${attempt}/2 started for channel ${channel.name} (${channel.id})`);
+
+		try {
+			await entersState(nextConnection, VoiceConnectionStatus.Ready, 20e3);
+			console.log(`[${context}] Voice connection is ready`);
+			return nextConnection;
+		} catch (error) {
+			lastError = error;
+			console.error(`[${context}] Join attempt ${attempt}/2 failed:`, error);
+			if (nextConnection.state.status !== VoiceConnectionStatus.Destroyed) {
+				nextConnection.destroy();
+			}
+			if (attempt < 2) {
+				await new Promise(resolve => setTimeout(resolve, 1000));
+			}
+		}
+	}
+
+	throw lastError ?? new Error('Failed to establish voice connection');
+}
+
 async function join(
 	interaction: ChatInputCommandInteraction,
 	recordable: Set<Snowflake>,
@@ -41,25 +84,19 @@ async function join(
 				console.log('Fetched member:', member.id);
 				console.log('Member in voice:', !!member.voice.channel);
 				
-				if (member.voice.channel) {
-					console.log('Voice channel ID:', member.voice.channel.id);
-					console.log('Voice channel name:', member.voice.channel.name);
-					
-					// Try to join using the freshly fetched member data
-					if (!connection) {
-						console.log('Attempting to join voice channel:', member.voice.channel.name);
+					if (member.voice.channel) {
+						console.log('Voice channel ID:', member.voice.channel.id);
+						console.log('Voice channel name:', member.voice.channel.name);
 						
-						try {
-							connection = joinVoiceChannel({
-								channelId: member.voice.channel.id,
-								guildId: member.voice.channel.guild.id,
-								selfDeaf: false,
-								selfMute: true,
-								adapterCreator: member.voice.channel.guild.voiceAdapterCreator as DiscordGatewayAdapterCreator,
-							});
+						// Try to join using the freshly fetched member data
+						if (!connection || connection.state.status !== VoiceConnectionStatus.Ready) {
+							console.log('Attempting to join voice channel:', member.voice.channel.name);
 							
-							console.log('Voice connection created successfully');
-						} catch (error) {
+							try {
+								connection = await createReadyConnection(member.voice.channel, 'join');
+								
+								console.log('Voice connection created successfully');
+							} catch (error) {
 							console.error('Error joining voice channel:', error);
 							await interaction.followUp('Error joining voice channel. Check console for details.');
 							return;
@@ -86,21 +123,15 @@ async function join(
 		// Fall back to the original method if fetching fails
 		console.log('Falling back to original method...');
 		
-		if (!connection) {
-			if (interaction.member instanceof GuildMember && interaction.member.voice.channel) {
-				const channel = interaction.member.voice.channel;
-				console.log('Attempting to join voice channel (fallback):', channel.name, channel.id);
-				
-				connection = joinVoiceChannel({
-					channelId: channel.id,
-					guildId: channel.guild.id,
-					selfDeaf: false,
-					selfMute: true,
-					adapterCreator: channel.guild.voiceAdapterCreator as DiscordGatewayAdapterCreator,
-				});
-			} else {
-				console.log('Failed voice channel check (fallback):');
-				console.log('- Member is GuildMember:', interaction.member instanceof GuildMember);
+			if (!connection || connection.state.status !== VoiceConnectionStatus.Ready) {
+				if (interaction.member instanceof GuildMember && interaction.member.voice.channel) {
+					const channel = interaction.member.voice.channel;
+					console.log('Attempting to join voice channel (fallback):', channel.name, channel.id);
+					
+					connection = await createReadyConnection(channel, 'join-fallback');
+				} else {
+					console.log('Failed voice channel check (fallback):');
+					console.log('- Member is GuildMember:', interaction.member instanceof GuildMember);
 				console.log('- Has voice channel:', interaction.member instanceof GuildMember ? !!interaction.member.voice.channel : 'N/A');
 				
 				await interaction.followUp('Join a voice channel and then try that again!');
@@ -111,7 +142,7 @@ async function join(
 
 	try {
 		console.log('Waiting for connection to be ready...');
-		await entersState(connection, VoiceConnectionStatus.Ready, 20e3);
+		await entersState(connection, VoiceConnectionStatus.Ready, 5e3);
 		console.log('Connection is ready!');
 		const receiver = connection.receiver;
 
@@ -197,82 +228,51 @@ async function record(
 	client: Client,
 	connection?: VoiceConnection,
 ) {
+	await interaction.deferReply({ ephemeral: true });
+
 	console.log('=== RECORD COMMAND DEBUG ===');
 	console.log('User ID:', interaction.user.id);
 	console.log('Guild ID:', interaction.guildId);
 	console.log('Connection exists:', !!connection);
 	
-	// If no connection exists, try to establish one first
-	if (!connection && interaction.guildId) {
-		console.log('No connection exists, attempting to join voice channel first');
-		
-		try {
-			// Try to fetch the member to get their voice channel
-			const guild = client.guilds.cache.get(interaction.guildId);
-			if (guild) {
-				const member = await guild.members.fetch(interaction.user.id);
-				
-				if (member.voice.channel) {
-					console.log('Found voice channel:', member.voice.channel.name);
-					
-					// Join the voice channel
-					connection = joinVoiceChannel({
-						channelId: member.voice.channel.id,
-						guildId: member.voice.channel.guild.id,
-						selfDeaf: false,
-						selfMute: true,
-						adapterCreator: member.voice.channel.guild.voiceAdapterCreator as DiscordGatewayAdapterCreator,
-					});
-					
-					// Wait for the connection to be ready
-					try {
-						await entersState(connection, VoiceConnectionStatus.Ready, 20e3);
-						console.log('Connection established for record command');
-					} catch (error) {
-						console.error('Failed to establish connection:', error);
-						await interaction.reply({ ephemeral: true, content: 'Failed to join voice channel. Please try the /join command first.' });
-						return;
-					}
-				} else {
-					console.log('User is not in a voice channel');
-					await interaction.reply({ ephemeral: true, content: 'You need to join a voice channel first!' });
-					return;
-				}
-			}
-		} catch (error) {
-			console.error('Error setting up connection for record command:', error);
-			await interaction.reply({ ephemeral: true, content: 'Error setting up voice connection. Please try the /join command first.' });
+	if (!interaction.guildId) {
+		await interaction.editReply({ content: 'This command can only be used in a server.' });
+		return;
+	}
+
+	try {
+		const guild = client.guilds.cache.get(interaction.guildId);
+		if (!guild) {
+			await interaction.editReply({ content: 'Error: Could not find guild.' });
 			return;
 		}
-	}
-	
-	if (connection) {
-		// Mark this as a manual recording in the voiceStateManager
-		if (interaction.guildId) {
-			const guild = client.guilds.cache.get(interaction.guildId);
-			if (guild) {
-				const member = await guild.members.fetch(interaction.user.id);
-				if (member.voice.channel) {
-					// Start a manual recording
-					const humanMembers = member.voice.channel.members.filter(m => !m.user.bot);
-					await startManualRecording(
-						interaction.guildId,
-						member.voice.channel.id,
-						member.voice.channel.name,
-						humanMembers,
-						connection,
-						client
-					);
-				}
-			}
+
+		const member = await guild.members.fetch(interaction.user.id);
+		if (!member.voice.channel) {
+			await interaction.editReply({ content: 'You need to join a voice channel first!' });
+			return;
 		}
-		
-		await interaction.reply({ 
-			ephemeral: true, 
-			content: `Started recording everyone in your voice channel. A transcript and summary will be generated when the recording ends.` 
+
+		if (!connection || connection.state.status !== VoiceConnectionStatus.Ready) {
+			connection = await createReadyConnection(member.voice.channel, 'record');
+		}
+
+		const humanMembers = member.voice.channel.members.filter(m => !m.user.bot);
+		await startManualRecording(
+			interaction.guildId,
+			member.voice.channel.id,
+			member.voice.channel.name,
+			humanMembers,
+			connection,
+			client
+		);
+
+		await interaction.editReply({
+			content: 'Started recording everyone in your voice channel. A transcript and summary will be generated when the recording ends.'
 		});
-	} else {
-		await interaction.reply({ ephemeral: true, content: 'Join a voice channel and then try that again!' });
+	} catch (error) {
+		console.error('Error setting up connection for record command:', error);
+		await interaction.editReply({ content: 'Failed to establish voice connection. Please try again in a few seconds.' });
 	}
 }
 
