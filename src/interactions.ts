@@ -49,6 +49,15 @@ async function createReadyConnection(
 				? ` reason=${newState.reason ?? 'n/a'} closeCode=${newState.closeCode ?? 'n/a'}`
 				: '';
 			console.log(`[${context}] state ${oldState.status} -> ${newState.status}${details} (+${elapsedMs}ms)`);
+
+			// Attach once to internal networking close event so we can see the exact WS close code.
+			const networking = (newState as unknown as { networking?: { on: (event: string, cb: (code: number) => void) => void; __closeHooked?: boolean } }).networking;
+			if (networking && !networking.__closeHooked) {
+				networking.__closeHooked = true;
+				networking.on('close', (code: number) => {
+					console.error(`[${context}] networking close code: ${code}`);
+				});
+			}
 		};
 		const errorLogger = (error: Error) => {
 			const elapsedMs = Date.now() - startedAt;

@@ -42,3 +42,4 @@
 - 2026-03-04: `/record` can exceed Discord interaction window when waiting on voice readiness; always defer immediately and respond via `editReply` to avoid `DiscordAPIError[10062]: Unknown interaction`.
 - 2026-03-04: Upgraded runtime voice deps to `discord.js@14.25.1` and `@discordjs/voice@0.19.0`; old versions were `14.18.0`/`0.18.0`.
 - 2026-03-04: Added manual `/join` connection debug/state/error logs in `createReadyConnection` to diagnose handshake failures outside auto-start path.
+- 2026-03-04: Added internal networking `close` code probes (manual + auto paths) by hooking `newState.networking.on('close', code)` in state-change logger; needed to get definitive Discord-side rejection reason.
