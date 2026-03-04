@@ -6,7 +6,7 @@ import { getTranscriptChannel } from './utils';
 import config from './config';
 
 // Get config values
-const { defaultChannel, transcriptChannelId } = config;
+const { defaultChannel, transcriptChannelId, voiceDebugLogs } = config;
 
 // Store active recordings by guild ID
 interface RecordingData {
@@ -142,7 +142,7 @@ async function handleMemberJoin(state: VoiceState, client: Client) {
                     selfDeaf: false,
                     selfMute: true,
                     adapterCreator: channel.guild.voiceAdapterCreator,
-                    debug: true,
+                    debug: Boolean(voiceDebugLogs),
                 });
 
                 console.log(`ℹ️ [auto-start:${attemptId}] Join attempt ${joinAttempt}/2 started`);
@@ -151,6 +151,7 @@ async function handleMemberJoin(state: VoiceState, client: Client) {
                 oldState: { status: VoiceConnectionStatus; reason?: number; closeCode?: number },
                 newState: { status: VoiceConnectionStatus; reason?: number; closeCode?: number }
             ) => {
+                if (!voiceDebugLogs) return;
                     const elapsedMs = Date.now() - attemptStartedAt;
                     const details = newState.status === VoiceConnectionStatus.Disconnected
                         ? ` reason=${newState.reason ?? 'n/a'} closeCode=${newState.closeCode ?? 'n/a'}`
@@ -169,12 +170,15 @@ async function handleMemberJoin(state: VoiceState, client: Client) {
                 }
             };
                 const errorLogger = (error: Error) => {
-                    const elapsedMs = Date.now() - attemptStartedAt;
-                    console.error(
-                        `❌ [auto-start:${attemptId}] Voice connection error before ready (+${elapsedMs}ms): ${error.name}: ${error.message}`
-                    );
+                    if (voiceDebugLogs) {
+                        const elapsedMs = Date.now() - attemptStartedAt;
+                        console.error(
+                            `❌ [auto-start:${attemptId}] Voice connection error before ready (+${elapsedMs}ms): ${error.name}: ${error.message}`
+                        );
+                    }
                 };
                 const debugLogger = (message: string) => {
+                    if (!voiceDebugLogs) return;
                     const elapsedMs = Date.now() - attemptStartedAt;
                     console.log(`🧪 [auto-start:${attemptId}] voice debug (+${elapsedMs}ms): ${message}`);
                 };

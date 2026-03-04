@@ -8,6 +8,7 @@ interface Config {
     claudeApiKey?: string;
     deepgram_token?: string;
     transcriptChannelId?: string;
+    voiceDebugLogs?: boolean;
 }
 
 // Try to load from auth.json first (for local development)
@@ -26,7 +27,8 @@ try {
             defaultChannel: process.env.DEFAULT_CHANNEL || 'transcripts',
             claudeApiKey: process.env.CLAUDE_API_KEY,
             deepgram_token: process.env.DEEPGRAM_TOKEN,
-            transcriptChannelId: process.env.TRANSCRIPT_CHANNEL_ID
+            transcriptChannelId: process.env.TRANSCRIPT_CHANNEL_ID,
+            voiceDebugLogs: process.env.VOICE_DEBUG_LOGS === 'true'
         };
         console.log('🌐 Loaded configuration from environment variables');
     }

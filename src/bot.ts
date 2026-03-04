@@ -7,7 +7,7 @@ import { ensureDirectoryExists } from './utils';
 import config from './config';
 
 // Extract config values
-const { token, defaultChannel, claudeApiKey, deepgram_token } = config;
+const { token, defaultChannel, claudeApiKey, deepgram_token, voiceDebugLogs } = config;
 
 // Validate required tokens
 if (!token) {
@@ -39,11 +39,13 @@ const client = new Client({
     ] 
 });
 
-client.on('ready', () => {
+client.once('clientReady', () => {
     console.log(`🤖 Bot is ready! Logged in as ${client.user?.tag}`);
     console.log(`🌐 Connected to ${client.guilds.cache.size} servers`);
     console.log(`🧰 Runtime: node ${process.version}, discord.js ${discordJsVersion}, @discordjs/voice ${discordVoiceVersion}`);
-    console.log('🎛️ Voice dependency report:\n' + generateDependencyReport());
+    if (voiceDebugLogs) {
+        console.log('🎛️ Voice dependency report:\n' + generateDependencyReport());
+    }
     client.guilds.cache.forEach(guild => {
         console.log(`   - ${guild.name} (${guild.id})`);
     });
@@ -110,25 +112,21 @@ const recordable = new Set<string>();
 const recording = new Set<string>();
 
 client.on('interactionCreate', async (interaction: Interaction) => {
-	console.log('=== INTERACTION RECEIVED ===');
-	console.log('Interaction type:', interaction.type);
-	console.log('Is command:', interaction.isChatInputCommand());
-	console.log('Guild ID:', interaction.guildId);
-	
 	if (!interaction.isChatInputCommand() || !interaction.guildId) {
-		console.log('Ignoring interaction - not a command or not in a guild');
 		return;
 	}
 
-	console.log('Command name:', interaction.commandName);
 	const handler = interactionHandlers.get(interaction.commandName);
-	console.log('Handler found:', !!handler);
+	if (voiceDebugLogs) {
+		console.log(`[interaction] command=${interaction.commandName} guild=${interaction.guildId} handler=${Boolean(handler)}`);
+	}
 
 	try {
 		if (handler) {
-			// Check if there's an existing voice connection
 			const existingConnection = getVoiceConnection(interaction.guildId);
-			console.log('Existing voice connection:', !!existingConnection);
+			if (voiceDebugLogs) {
+				console.log(`[interaction] existing voice connection=${Boolean(existingConnection)}`);
+			}
 			
 			await handler(interaction, recordable, recording, client, existingConnection);
 		} else {

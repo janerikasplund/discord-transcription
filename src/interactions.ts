@@ -4,7 +4,7 @@ import { createListeningStream } from './createListeningStream';
 import { isRecording, stopRecording, startManualRecording, cancelRecording } from './voiceStateManager';
 import config from './config';
 
-const { defaultChannel } = config;
+const { defaultChannel, voiceDebugLogs } = config;
 
 function getDisplayName(interaction: ChatInputCommandInteraction, client: Client, userId: string) {
     const member = interaction.guild?.members.cache.get(userId);
@@ -35,7 +35,7 @@ async function createReadyConnection(
 			selfDeaf: false,
 			selfMute: true,
 			adapterCreator: channel.guild.voiceAdapterCreator as DiscordGatewayAdapterCreator,
-			debug: true,
+			debug: Boolean(voiceDebugLogs),
 		});
 
 		console.log(`[${context}] Join attempt ${attempt}/2 started for channel ${channel.name} (${channel.id})`);
@@ -44,6 +44,7 @@ async function createReadyConnection(
 			oldState: { status: VoiceConnectionStatus; reason?: number; closeCode?: number },
 			newState: { status: VoiceConnectionStatus; reason?: number; closeCode?: number }
 		) => {
+			if (!voiceDebugLogs) return;
 			const elapsedMs = Date.now() - startedAt;
 			const details = newState.status === VoiceConnectionStatus.Disconnected
 				? ` reason=${newState.reason ?? 'n/a'} closeCode=${newState.closeCode ?? 'n/a'}`
@@ -64,6 +65,7 @@ async function createReadyConnection(
 			console.error(`[${context}] connection error (+${elapsedMs}ms): ${error.name}: ${error.message}`);
 		};
 		const debugLogger = (message: string) => {
+			if (!voiceDebugLogs) return;
 			const elapsedMs = Date.now() - startedAt;
 			console.log(`[${context}] voice debug (+${elapsedMs}ms): ${message}`);
 		};
@@ -105,36 +107,18 @@ async function join(
 	connection?: VoiceConnection,
 ) {
 	await interaction.deferReply();
-	
-	// Add more detailed debugging information
-	console.log('=== JOIN COMMAND DEBUG ===');
-	console.log('User ID:', interaction.user.id);
-	console.log('Guild ID:', interaction.guildId);
-	console.log('Member object:', interaction.member);
-	console.log('Member type:', interaction.member ? typeof interaction.member : 'null');
-	console.log('Is GuildMember:', interaction.member instanceof GuildMember);
-	
+
 	// Force fetch the member to ensure we have the latest data
 	try {
 		if (interaction.guildId) {
 			const guild = client.guilds.cache.get(interaction.guildId);
 			if (guild) {
 				const member = await guild.members.fetch(interaction.user.id);
-				console.log('Fetched member:', member.id);
-				console.log('Member in voice:', !!member.voice.channel);
-				
 					if (member.voice.channel) {
-						console.log('Voice channel ID:', member.voice.channel.id);
-						console.log('Voice channel name:', member.voice.channel.name);
-						
 						// Try to join using the freshly fetched member data
 						if (!connection || connection.state.status !== VoiceConnectionStatus.Ready) {
-							console.log('Attempting to join voice channel:', member.voice.channel.name);
-							
 							try {
 								connection = await createReadyConnection(member.voice.channel, 'join');
-								
-								console.log('Voice connection created successfully');
 							} catch (error) {
 							console.error('Error joining voice channel:', error);
 							await interaction.followUp('Error joining voice channel. Check console for details.');
@@ -142,17 +126,14 @@ async function join(
 						}
 					}
 				} else {
-					console.log('Member is not in a voice channel after fetch');
 					await interaction.followUp('You need to join a voice channel first!');
 					return;
 				}
 			} else {
-				console.log('Could not find guild:', interaction.guildId);
 				await interaction.followUp('Error: Could not find guild');
 				return;
 			}
 		} else {
-			console.log('No guild ID available');
 			await interaction.followUp('Error: No guild ID available');
 			return;
 		}
@@ -160,19 +141,11 @@ async function join(
 		console.error('Error fetching member:', error);
 		
 		// Fall back to the original method if fetching fails
-		console.log('Falling back to original method...');
-		
 			if (!connection || connection.state.status !== VoiceConnectionStatus.Ready) {
 				if (interaction.member instanceof GuildMember && interaction.member.voice.channel) {
 					const channel = interaction.member.voice.channel;
-					console.log('Attempting to join voice channel (fallback):', channel.name, channel.id);
-					
 					connection = await createReadyConnection(channel, 'join-fallback');
 				} else {
-					console.log('Failed voice channel check (fallback):');
-					console.log('- Member is GuildMember:', interaction.member instanceof GuildMember);
-				console.log('- Has voice channel:', interaction.member instanceof GuildMember ? !!interaction.member.voice.channel : 'N/A');
-				
 				await interaction.followUp('Join a voice channel and then try that again!');
 				return;
 			}
@@ -180,9 +153,7 @@ async function join(
 	}
 
 	try {
-		console.log('Waiting for connection to be ready...');
 		await entersState(connection, VoiceConnectionStatus.Ready, 5e3);
-		console.log('Connection is ready!');
 		const receiver = connection.receiver;
 
 		receiver.speaking.on('start', async (userId) => {
@@ -268,11 +239,6 @@ async function record(
 	connection?: VoiceConnection,
 ) {
 	await interaction.deferReply({ ephemeral: true });
-
-	console.log('=== RECORD COMMAND DEBUG ===');
-	console.log('User ID:', interaction.user.id);
-	console.log('Guild ID:', interaction.guildId);
-	console.log('Connection exists:', !!connection);
 	
 	if (!interaction.guildId) {
 		await interaction.editReply({ content: 'This command can only be used in a server.' });
